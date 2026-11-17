@@ -19,54 +19,72 @@ class ReporteController {
      */
     public function dashboardKpi(): void {
         $user = $GLOBALS['auth_user'] ?? JwtAuthMiddleware::getUser();
-        $sucursalId = isset($_GET['sucursal_id']) ? (int)$_GET['sucursal_id'] : null;
+        $sucursalId = isset($_GET['sucursal_id']) && is_numeric($_GET['sucursal_id']) ? (int)$_GET['sucursal_id'] : null;
 
         if ($user && ($user['rol_nombre'] ?? '') === 'Supervisor') {
             $sucursalId = (int)$user['sucursal_id'];
         }
 
-        $sucFilterPed = $sucursalId ? "AND sucursal_id = {$sucursalId}" : "";
-        $sucFilterInv = $sucursalId ? "WHERE i.sucursal_id = {$sucursalId}" : "";
+        $paramsSuc = [];
+        $sucFilterPed = "";
+        $sucFilterInv = "";
+        $sucFilterI = "";
+        if ($sucursalId !== null) {
+            $paramsSuc[':suc_id'] = $sucursalId;
+            $sucFilterPed = "AND sucursal_id = :suc_id";
+            $sucFilterInv = "WHERE i.sucursal_id = :suc_id";
+            $sucFilterI = "AND i.sucursal_id = :suc_id";
+        }
 
         // 1. Ventas del Mes
-        $ventasMes = (float)$this->db->query(
+        $stmtVentasMes = $this->db->prepare(
             "SELECT COALESCE(SUM(total), 0) FROM pedidos 
              WHERE estado_pedido != 'CANCELADO' 
                AND MONTH(fecha_pedido) = MONTH(CURRENT_DATE()) 
                AND YEAR(fecha_pedido) = YEAR(CURRENT_DATE()) {$sucFilterPed}"
-        )->fetchColumn();
+        );
+        $stmtVentasMes->execute($paramsSuc);
+        $ventasMes = (float)$stmtVentasMes->fetchColumn();
 
         // 2. Pedidos Totales
-        $totalPedidos = (int)$this->db->query(
+        $stmtTotalPed = $this->db->prepare(
             "SELECT COUNT(id) FROM pedidos WHERE estado_pedido != 'CANCELADO' {$sucFilterPed}"
-        )->fetchColumn();
+        );
+        $stmtTotalPed->execute($paramsSuc);
+        $totalPedidos = (int)$stmtTotalPed->fetchColumn();
 
         // 3. Valor de Inversión Total en Inventario (S/.)
-        $valorInventario = (float)$this->db->query(
+        $stmtValInv = $this->db->prepare(
             "SELECT COALESCE(SUM(i.stock_actual * p.costo_base), 0) 
              FROM inventarios i 
              JOIN productos p ON i.producto_id = p.id {$sucFilterInv}"
-        )->fetchColumn();
+        );
+        $stmtValInv->execute($paramsSuc);
+        $valorInventario = (float)$stmtValInv->fetchColumn();
 
         // 4. Conteo de Productos Críticos (Stock <= Punto de Reorden)
-        $criticosPor = (int)$this->db->query(
+        $stmtCrit = $this->db->prepare(
             "SELECT COUNT(i.id) FROM inventarios i 
-             WHERE i.stock_actual <= i.punto_reorden " . ($sucursalId ? "AND i.sucursal_id = {$sucursalId}" : "")
-        )->fetchColumn();
+             WHERE i.stock_actual <= i.punto_reorden {$sucFilterI}"
+        );
+        $stmtCrit->execute($paramsSuc);
+        $criticosPor = (int)$stmtCrit->fetchColumn();
 
         // 4.1 REQUERIMIENTO 3: Alertas de Stock Bajo (Exactamente o menor a 5 unidades)
-        $alertasStockBajo5 = $this->db->query(
+        $stmtAlertas = $this->db->prepare(
             "SELECT i.id, i.sucursal_id, s.nombre AS sucursal_nombre, i.producto_id,
                     p.nombre AS producto_nombre, p.codigo_sku, i.stock_actual, i.punto_reorden
              FROM inventarios i
              JOIN productos p ON i.producto_id = p.id
              JOIN sucursales s ON i.sucursal_id = s.id
-             WHERE i.stock_actual <= 5 AND p.estado = 1 " . ($sucursalId ? "AND i.sucursal_id = {$sucursalId}" : "") . "
+             WHERE i.stock_actual <= 5 AND p.estado = 1 {$sucFilterI}
              ORDER BY i.stock_actual ASC"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        );
+        $stmtAlertas->execute($paramsSuc);
+        $alertasStockBajo5 = $stmtAlertas->fetchAll(PDO::FETCH_ASSOC);
 
         // 5. Ventas por Categoría
-        $ventasPorCat = $this->db->query(
+        $stmtCat = $this->db->prepare(
             "SELECT c.nombre AS categoria, COALESCE(SUM(dp.subtotal), 0) AS total_soles, COUNT(dp.id) AS cantidad_vendida
              FROM detalle_pedidos dp
              JOIN productos p ON dp.producto_id = p.id
@@ -75,10 +93,12 @@ class ReporteController {
              WHERE ped.estado_pedido != 'CANCELADO' {$sucFilterPed}
              GROUP BY c.id
              ORDER BY total_soles DESC"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        );
+        $stmtCat->execute($paramsSuc);
+        $ventasPorCat = $stmtCat->fetchAll(PDO::FETCH_ASSOC);
 
         // 6. Top 5 Productos Más Vendidos
-        $topProductos = $this->db->query(
+        $stmtTop = $this->db->prepare(
             "SELECT p.nombre AS producto, COALESCE(SUM(dp.cantidad), 0) AS unidades, COALESCE(SUM(dp.subtotal), 0) AS ingresos_soles
              FROM detalle_pedidos dp
              JOIN productos p ON dp.producto_id = p.id
@@ -87,7 +107,9 @@ class ReporteController {
              GROUP BY p.id
              ORDER BY unidades DESC
              LIMIT 5"
-        )->fetchAll(PDO::FETCH_ASSOC);
+        );
+        $stmtTop->execute($paramsSuc);
+        $topProductos = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
 
         Response::success([
             'ventas_mes'               => round($ventasMes, 2),
@@ -121,27 +143,35 @@ class ReporteController {
         $fechaFin    = $_GET['fecha_fin'] ?? date('Y-m-d');
         $categoriaId = isset($_GET['categoria_id']) && is_numeric($_GET['categoria_id']) ? (int)$_GET['categoria_id'] : null;
 
-        // Filtro de sucursal SQL seguro
-        $sucFilterSql = $sucursalId ? "AND ped.sucursal_id = {$sucursalId}" : "";
+        // Filtro de sucursal parametrizado seguro
+        $paramsSuc = [];
+        $sucFilterPed = "";
+        $sucFilterInv = "";
+        if ($sucursalId !== null) {
+            $paramsSuc[':suc_id'] = $sucursalId;
+            $sucFilterPed = "AND ped.sucursal_id = :suc_id";
+            $sucFilterInv = "AND i.sucursal_id = :suc_id";
+        }
 
         // Parámetros para el rango seleccionado
-        $paramsPeriodo = [':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin];
-        $wherePed = "WHERE ped.estado_pedido != 'CANCELADO' AND DATE(ped.fecha_pedido) BETWEEN :f_inicio AND :f_fin {$sucFilterSql}";
+        $paramsPeriodo = array_merge($paramsSuc, [':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin]);
+        $wherePed = "WHERE ped.estado_pedido != 'CANCELADO' AND DATE(ped.fecha_pedido) BETWEEN :f_inicio AND :f_fin {$sucFilterPed}";
 
         // ==============================================================
         // 1. VENTAS DEL DÍA (Prompt 3 - Sección 1.A)
         // ==============================================================
-        $stmtVentasHoy = $this->db->query("
+        $stmtVentasHoy = $this->db->prepare("
             SELECT 
                 COALESCE(SUM(ped.total), 0) AS total_ventas_hoy,
                 COUNT(ped.id) AS total_operaciones_hoy
             FROM pedidos ped
             WHERE ped.estado_pedido != 'CANCELADO' 
-              AND DATE(ped.fecha_pedido) = CURRENT_DATE() {$sucFilterSql}
+              AND DATE(ped.fecha_pedido) = CURRENT_DATE() {$sucFilterPed}
         ");
+        $stmtVentasHoy->execute($paramsSuc);
         $ventasHoyData = $stmtVentasHoy->fetch(PDO::FETCH_ASSOC);
 
-        $stmtDetalleHoy = $this->db->query("
+        $stmtDetalleHoy = $this->db->prepare("
             SELECT 
                 ped.id,
                 ped.codigo_pedido,
@@ -156,27 +186,29 @@ class ReporteController {
             JOIN sucursales s ON ped.sucursal_id = s.id
             LEFT JOIN clientes c ON ped.cliente_id = c.id
             WHERE ped.estado_pedido != 'CANCELADO' 
-              AND DATE(ped.fecha_pedido) = CURRENT_DATE() {$sucFilterSql}
+              AND DATE(ped.fecha_pedido) = CURRENT_DATE() {$sucFilterPed}
             ORDER BY ped.fecha_pedido DESC
             LIMIT 20
         ");
+        $stmtDetalleHoy->execute($paramsSuc);
         $ventasDetalleHoy = $stmtDetalleHoy->fetchAll(PDO::FETCH_ASSOC);
 
         // ==============================================================
         // 2. VENTAS DEL MES (Prompt 3 - Sección 1.B)
         // ==============================================================
-        $stmtVentasMes = $this->db->query("
+        $stmtVentasMes = $this->db->prepare("
             SELECT 
                 COALESCE(SUM(ped.total), 0) AS total_ventas_mes,
                 COUNT(ped.id) AS total_operaciones_mes
             FROM pedidos ped
             WHERE ped.estado_pedido != 'CANCELADO' 
               AND MONTH(ped.fecha_pedido) = MONTH(CURRENT_DATE())
-              AND YEAR(ped.fecha_pedido) = YEAR(CURRENT_DATE()) {$sucFilterSql}
+              AND YEAR(ped.fecha_pedido) = YEAR(CURRENT_DATE()) {$sucFilterPed}
         ");
+        $stmtVentasMes->execute($paramsSuc);
         $ventasMesData = $stmtVentasMes->fetch(PDO::FETCH_ASSOC);
 
-        $stmtVentasPorDiaMes = $this->db->query("
+        $stmtVentasPorDiaMes = $this->db->prepare("
             SELECT 
                 DATE(ped.fecha_pedido) AS fecha,
                 COUNT(ped.id) AS operaciones,
@@ -184,10 +216,11 @@ class ReporteController {
             FROM pedidos ped
             WHERE ped.estado_pedido != 'CANCELADO' 
               AND MONTH(ped.fecha_pedido) = MONTH(CURRENT_DATE())
-              AND YEAR(ped.fecha_pedido) = YEAR(CURRENT_DATE()) {$sucFilterSql}
+              AND YEAR(ped.fecha_pedido) = YEAR(CURRENT_DATE()) {$sucFilterPed}
             GROUP BY DATE(ped.fecha_pedido)
             ORDER BY fecha ASC
         ");
+        $stmtVentasPorDiaMes->execute($paramsSuc);
         $ventasPorDiaMes = $stmtVentasPorDiaMes->fetchAll(PDO::FETCH_ASSOC);
 
         // ==============================================================
@@ -252,7 +285,12 @@ class ReporteController {
         // ==============================================================
         // 5. PRODUCTOS DE ALTA ROTACIÓN (Prompt 3 - Sección 2)
         // ==============================================================
-        $catFilter = $categoriaId ? "AND p.categoria_id = {$categoriaId}" : "";
+        $paramsRotacion = $paramsPeriodo;
+        $catFilter = "";
+        if ($categoriaId !== null) {
+            $catFilter = "AND p.categoria_id = :cat_id";
+            $paramsRotacion[':cat_id'] = $categoriaId;
+        }
         $stmtRotacion = $this->db->prepare("
             SELECT 
                 p.id,
@@ -273,7 +311,7 @@ class ReporteController {
             ORDER BY unidades_vendidas DESC, total_soles_generado DESC
             LIMIT 25
         ");
-        $stmtRotacion->execute($paramsPeriodo);
+        $stmtRotacion->execute($paramsRotacion);
         $altaRotacion = $stmtRotacion->fetchAll(PDO::FETCH_ASSOC);
 
         // ==============================================================
@@ -321,8 +359,7 @@ class ReporteController {
         // ==============================================================
         // 7. PRODUCTOS AGOTADOS Y CRÍTICOS
         // ==============================================================
-        $whereInvSuc = $sucursalId ? "AND i.sucursal_id = {$sucursalId}" : "";
-        $stmtAgotados = $this->db->query("
+        $stmtAgotados = $this->db->prepare("
             SELECT 
                 p.id, p.codigo_sku, p.nombre, p.precio_venta, c.nombre AS categoria,
                 s.nombre AS sucursal_nombre, i.stock_actual, i.punto_reorden
@@ -330,12 +367,13 @@ class ReporteController {
             JOIN productos p ON i.producto_id = p.id
             JOIN categorias c ON p.categoria_id = c.id
             JOIN sucursales s ON i.sucursal_id = s.id
-            WHERE i.stock_actual <= 0 {$whereInvSuc}
+            WHERE i.stock_actual <= 0 {$sucFilterInv}
             ORDER BY s.nombre, p.nombre
         ");
+        $stmtAgotados->execute($paramsSuc);
         $agotados = $stmtAgotados->fetchAll(PDO::FETCH_ASSOC);
 
-        $stmtBajoStock = $this->db->query("
+        $stmtBajoStock = $this->db->prepare("
             SELECT 
                 p.id, p.codigo_sku, p.nombre, p.precio_venta, c.nombre AS categoria,
                 s.nombre AS sucursal_nombre, i.stock_actual, i.punto_reorden,
@@ -345,10 +383,11 @@ class ReporteController {
             JOIN productos p ON i.producto_id = p.id
             JOIN categorias c ON p.categoria_id = c.id
             JOIN sucursales s ON i.sucursal_id = s.id
-            WHERE i.stock_actual > 0 AND (i.stock_actual <= 5 OR i.stock_actual <= i.punto_reorden) {$whereInvSuc}
+            WHERE i.stock_actual > 0 AND (i.stock_actual <= 5 OR i.stock_actual <= i.punto_reorden) {$sucFilterInv}
             ORDER BY i.stock_actual ASC
             LIMIT 25
         ");
+        $stmtBajoStock->execute($paramsSuc);
         $bajoStock = $stmtBajoStock->fetchAll(PDO::FETCH_ASSOC);
 
         $stmtEvolucion = $this->db->prepare("
@@ -364,7 +403,12 @@ class ReporteController {
         $stmtEvolucion->execute($paramsPeriodo);
         $evolucion = $stmtEvolucion->fetchAll(PDO::FETCH_ASSOC);
 
-        $whereKardex = $sucursalId ? "AND k.sucursal_id = {$sucursalId}" : "";
+        $paramsKardex = [':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin];
+        $kardexSuc = "";
+        if ($sucursalId !== null) {
+            $kardexSuc = "AND k.sucursal_id = :suc_id";
+            $paramsKardex[':suc_id'] = $sucursalId;
+        }
         $stmtMovimientos = $this->db->prepare("
             SELECT 
                 k.tipo_movimiento,
@@ -372,10 +416,10 @@ class ReporteController {
                 COALESCE(SUM(k.cantidad), 0) AS total_unidades,
                 COALESCE(SUM(k.cantidad * k.costo_unitario), 0) AS valor_monetario_soles
             FROM movimientos_inventario k
-            WHERE DATE(k.created_at) BETWEEN :f_inicio AND :f_fin {$whereKardex}
+            WHERE DATE(k.created_at) BETWEEN :f_inicio AND :f_fin {$kardexSuc}
             GROUP BY k.tipo_movimiento
         ");
-        $stmtMovimientos->execute([':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin]);
+        $stmtMovimientos->execute($paramsKardex);
         $movimientos = $stmtMovimientos->fetchAll(PDO::FETCH_ASSOC);
 
         Response::success([

@@ -11,7 +11,7 @@ export const VentasAdminView = () => {
   const [filterStatus, setFilterStatus] = useState('ALL');
 
   useEffect(() => {
-    fetchVentas();
+    void fetchVentas();
   }, []);
 
   const fetchVentas = async () => {

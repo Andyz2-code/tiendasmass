@@ -107,7 +107,7 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
   };
 
   useEffect(() => {
-    fetchData(debouncedSearch, selectedCat);
+    void fetchData(debouncedSearch, selectedCat);
   }, [activeBranch, debouncedSearch, selectedCat, retryCount]);
 
   // Soporte para abrir modal directo si hay ?producto= en URL
@@ -165,10 +165,10 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
   // Filtrado de productos
   const filteredProducts = useMemo(() => {
     return productos.filter(p => {
-      const price = parseFloat(p.precio_venta || 0);
+      const price = Number.parseFloat(p.precio_venta || 0);
 
       // Categoría
-      if (selectedCat && parseInt(p.categoria_id) !== parseInt(selectedCat)) {
+      if (selectedCat && Number.parseInt(p.categoria_id, 10) !== Number.parseInt(selectedCat, 10)) {
         return false;
       }
 
@@ -220,11 +220,10 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
         <div className="w-full flex items-center gap-2.5 overflow-x-auto custom-scroll py-0.5 text-xs sm:text-sm">
           <button
             onClick={() => handleResetAllFilters()}
-            className={`px-4 py-1.5 rounded-full font-bold text-xs transition shrink-0 ${
-              selectedCat === null && !isOffersOnly && !isFavoritesOnly
-                ? 'bg-mass-red text-white shadow-xs font-black'
-                : 'text-stone-700 hover:bg-stone-100 hover:text-stone-950'
-            }`}
+            className={`px-4 py-1.5 rounded-full font-bold text-xs transition shrink-0 ${selectedCat === null && !isOffersOnly && !isFavoritesOnly
+              ? 'bg-mass-red text-white shadow-xs font-black'
+              : 'text-stone-700 hover:bg-stone-100 hover:text-stone-950'
+              }`}
           >
             Inicio
           </button>
@@ -235,11 +234,10 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
               setSelectedCat(null);
               setIsFavoritesOnly(false);
             }}
-            className={`px-4 py-1.5 rounded-full font-black text-xs transition shrink-0 flex items-center gap-1.5 ${
-              isOffersOnly
-                ? 'bg-[#ff7332] text-white shadow-xs'
-                : 'text-[#ff7332] hover:bg-orange-50'
-            }`}
+            className={`px-4 py-1.5 rounded-full font-black text-xs transition shrink-0 flex items-center gap-1.5 ${isOffersOnly
+              ? 'bg-[#ff7332] text-white shadow-xs'
+              : 'text-[#ff7332] hover:bg-orange-50'
+              }`}
           >
             <span>💥</span>
             <span>Ofertas Bomba</span>
@@ -251,11 +249,10 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
               setSelectedCat(null);
               setIsOffersOnly(false);
             }}
-            className={`px-4 py-1.5 rounded-full font-bold text-xs transition shrink-0 flex items-center gap-1.5 ${
-              isFavoritesOnly
-                ? 'bg-red-500 text-white shadow-xs'
-                : 'text-red-500 hover:bg-red-50'
-            }`}
+            className={`px-4 py-1.5 rounded-full font-bold text-xs transition shrink-0 flex items-center gap-1.5 ${isFavoritesOnly
+              ? 'bg-red-500 text-white shadow-xs'
+              : 'text-red-500 hover:bg-red-50'
+              }`}
           >
             <span>♡</span>
             <span>Favoritos ({favorites.length})</span>
@@ -273,11 +270,10 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                   setIsOffersOnly(false);
                   setIsFavoritesOnly(false);
                 }}
-                className={`px-3.5 py-1.5 rounded-full font-semibold text-xs whitespace-nowrap transition shrink-0 ${
-                  isSelected
-                    ? 'bg-stone-900 text-mass-yellow font-black shadow-xs'
-                    : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-                }`}
+                className={`px-3.5 py-1.5 rounded-full font-semibold text-xs whitespace-nowrap transition shrink-0 ${isSelected
+                  ? 'bg-stone-900 text-mass-yellow font-black shadow-xs'
+                  : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
+                  }`}
               >
                 {cat.nombre}
               </button>
@@ -347,11 +343,11 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
         ) : filteredProducts.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {filteredProducts.map((p, idx) => {
-              const stock = parseInt(p.stock_actual || 0);
+              const stock = Number.parseInt(p.stock_actual || 0, 10);
               const isFav = favorites.includes(p.id);
               const brand = detectBrand(p.nombre);
               const cardQty = localQtys[p.id] || 1;
-              const priceNum = parseFloat(p.precio_venta || 0);
+              const priceNum = Number.parseFloat(p.precio_venta || 0);
               const origPrice = (priceNum * 1.25).toFixed(2);
               const isAgotado = stock <= 0;
               const isBajoStock = stock > 0 && stock <= 10;
@@ -416,10 +412,17 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                 <React.Fragment key={p.id}>
                   {bannerNode}
                   <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setSelectedProductModal(p)}
-                    className={`bg-white rounded-2xl border border-stone-200/90 p-4 shadow-2xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between group relative h-full cursor-pointer ${
-                      isAgotado ? 'opacity-75 border-dashed border-stone-300' : 'hover:border-amber-400'
-                    }`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setSelectedProductModal(p);
+                      }
+                    }}
+                    className={`bg-white rounded-2xl border border-stone-200/90 p-4 shadow-2xs hover:shadow-lg transition-all duration-200 flex flex-col justify-between group relative h-full cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 ${isAgotado ? 'opacity-75 border-dashed border-stone-300' : 'hover:border-amber-400'
+                      }`}
                   >
                     {/* Badges y Botón Favoritos */}
                     <div className="flex items-center justify-between absolute top-3.5 left-3.5 right-3.5 z-10 pointer-events-none">
@@ -431,9 +434,8 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                           e.stopPropagation();
                           toggleFavorite(p.id);
                         }}
-                        className={`pointer-events-auto w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-xs transition border ${
-                          isFav ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white/95 text-stone-400 hover:text-red-500 border-stone-200'
-                        }`}
+                        className={`pointer-events-auto w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-xs transition border ${isFav ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white/95 text-stone-400 hover:text-red-500 border-stone-200'
+                          }`}
                         title={isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
                       >
                         <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-red-600 text-red-600' : 'text-stone-400'}`} />
@@ -445,9 +447,8 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                       <img
                         src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300'}
                         alt={p.nombre}
-                        className={`max-h-full max-w-full object-contain transition-transform duration-300 ${
-                          isAgotado ? 'grayscale contrast-75' : 'group-hover:scale-105'
-                        }`}
+                        className={`max-h-full max-w-full object-contain transition-transform duration-300 ${isAgotado ? 'grayscale contrast-75' : 'group-hover:scale-105'
+                          }`}
                       />
                       {isAgotado && (
                         <div className="absolute inset-0 bg-stone-900/40 flex items-center justify-center">
@@ -461,15 +462,14 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                     {/* Disponibilidad y Detalles con Validación Visual */}
                     <div className="space-y-1.5 flex-1 flex flex-col justify-start">
                       <div className="flex items-center gap-1.5 text-[11px] font-bold">
-                        <span className={`w-2 h-2 rounded-full inline-block ${
-                          isAgotado ? 'bg-red-500' : isBajoStock ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
-                        }`}></span>
+                        <span className={`w-2 h-2 rounded-full inline-block ${isAgotado ? 'bg-red-500' : isBajoStock ? 'bg-amber-500 animate-ping' : 'bg-emerald-500'
+                          }`}></span>
                         <span className={isAgotado ? 'text-red-600' : isBajoStock ? 'text-amber-700' : 'text-stone-500'}>
                           {isAgotado
                             ? 'Producto agotado en tienda'
                             : isBajoStock
-                            ? `¡Solo ${stock} disponibles en ${selectedBranch?.nombre?.replace('Tienda Mass - ', '') || 'sede'}!`
-                            : `${stock} unidades disponibles`}
+                              ? `¡Solo ${stock} disponibles en ${selectedBranch?.nombre?.replace('Tienda Mass - ', '') || 'sede'}!`
+                              : `${stock} unidades disponibles`}
                         </span>
                       </div>
 
@@ -498,10 +498,7 @@ export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDeb
                       </div>
 
                       <div className="flex items-center gap-2">
-                        <div
-                          className="flex items-center border border-stone-200 rounded-xl bg-stone-50 px-2 py-1 shrink-0"
-                          onClick={(e) => e.stopPropagation()}
-                        >
+                        <div className="flex items-center border border-stone-200 rounded-xl bg-stone-50 px-2 py-1 shrink-0">
                           <button
                             disabled={isAgotado}
                             onClick={(e) => {

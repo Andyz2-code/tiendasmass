@@ -238,7 +238,9 @@ class ReorderCalculationService {
         $stmt->execute([':sucursal_id' => $sucursalId]);
         $lotes = $stmt->fetchAll();
 
-        $stockTotalSucursal = (int)$this->db->query("SELECT COALESCE(SUM(cantidad_disponible), 0) FROM lotes WHERE sucursal_id = {$sucursalId} AND estado = 'DISPONIBLE'")->fetchColumn();
+        $stmtTot = $this->db->prepare("SELECT COALESCE(SUM(cantidad_disponible), 0) FROM lotes WHERE sucursal_id = :sucursal_id AND estado = 'DISPONIBLE'");
+        $stmtTot->execute([':sucursal_id' => $sucursalId]);
+        $stockTotalSucursal = (int)$stmtTot->fetchColumn();
 
         $unidadesEnRiesgo = 0;
         $lotesRiesgo7Dias  = [];

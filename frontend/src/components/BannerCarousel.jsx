@@ -35,7 +35,7 @@ export const BannerCarousel = ({ sucursalId, onCtaClick }) => {
       }
     };
 
-    fetchBanners();
+    void fetchBanners();
     return () => { isMounted = false; };
   }, [sucursalId]);
 
@@ -59,16 +59,6 @@ export const BannerCarousel = ({ sucursalId, onCtaClick }) => {
     setCurrentIndex((prev) => (prev + 1) % banners.length);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      handlePrev();
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      handleNext();
-    }
-  };
-
   if (loading) {
     return (
       <div className="w-full h-64 sm:h-72 md:h-84 rounded-3xl md:rounded-[2rem] bg-stone-200 animate-pulse border border-stone-200 mb-6"></div>
@@ -79,8 +69,6 @@ export const BannerCarousel = ({ sucursalId, onCtaClick }) => {
 
   return (
     <div
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
       className="relative w-full overflow-hidden rounded-3xl md:rounded-[2rem] shadow-md border border-stone-200/80 bg-stone-900 select-none group mb-6 focus:outline-none focus:ring-2 focus:ring-mass-yellow/60"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}

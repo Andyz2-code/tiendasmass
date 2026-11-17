@@ -40,7 +40,7 @@ class UploadController {
 
         libxml_use_internal_errors(true);
         $dom = new DOMDocument();
-        $dom->loadXML($svgContent, LIBXML_NOENT | LIBXML_DTDLOAD | LIBXML_NOERROR | LIBXML_NOWARNING);
+        $dom->loadXML($svgContent, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
         libxml_clear_errors();
 
         // Verificar que la raíz sea un elemento svg

@@ -112,8 +112,9 @@ export const AdminLayout = () => {
 
           <form onSubmit={handleLoginSubmit} className="space-y-4 text-xs">
             <div>
-              <label className="block font-bold text-stone-700 mb-1">Correo Institucional:</label>
+              <label htmlFor="admin_login_email" className="block font-bold text-stone-700 mb-1">Correo Institucional:</label>
               <input
+                id="admin_login_email"
                 type="email"
                 required
                 value={loginEmail}
@@ -124,8 +125,9 @@ export const AdminLayout = () => {
             </div>
 
             <div>
-              <label className="block font-bold text-stone-700 mb-1">Contraseña de Seguridad:</label>
+              <label htmlFor="admin_login_pass" className="block font-bold text-stone-700 mb-1">Contraseña de Seguridad:</label>
               <input
+                id="admin_login_pass"
                 type="password"
                 required
                 value={loginPass}
@@ -212,9 +214,9 @@ export const AdminLayout = () => {
 
         {/* Selector de Sucursal */}
         <div className="p-4 border-b border-stone-800 bg-stone-950/40">
-          <label className="text-[10px] uppercase font-bold text-stone-400 block mb-1.5 flex items-center gap-1">
+          <span className="text-[10px] uppercase font-bold text-stone-400 block mb-1.5 flex items-center gap-1">
             <Building2 className="w-3.5 h-3.5 text-amber-400" /> Sucursal Operativa
-          </label>
+          </span>
           {isAdmin ? (
             <select
               value={selectedBranch?.id || ''}

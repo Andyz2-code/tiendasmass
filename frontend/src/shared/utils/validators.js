@@ -12,10 +12,10 @@ export const isValidPhone = (phone) => {
 };
 
 export const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim());
+  return /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(String(email).trim());
 };
 
 export const isValidPositiveNumber = (val) => {
   const n = Number(val);
-  return !isNaN(n) && n >= 0;
+  return !Number.isNaN(n) && n >= 0;
 };

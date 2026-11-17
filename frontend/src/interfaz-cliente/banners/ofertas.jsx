@@ -14,17 +14,18 @@ export const OfertasPromociones = ({ onSelectOferta = () => {} }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-6">
       {ofertas.map((of) => (
-        <div
+        <button
+          type="button"
           key={of.id}
           onClick={() => onSelectOferta(of)}
-          className={`bg-gradient-to-r ${of.color} p-4 rounded-3xl shadow-sm hover:shadow-md transition cursor-pointer transform hover:-translate-y-0.5 border border-amber-300/40`}
+          className={`w-full text-left bg-gradient-to-r ${of.color} p-4 rounded-3xl shadow-sm hover:shadow-md transition cursor-pointer transform hover:-translate-y-0.5 border border-amber-300/40 focus:outline-none focus:ring-2 focus:ring-amber-400`}
         >
           <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-white/20 backdrop-blur-xs mb-2">
             {of.tag}
           </span>
           <h4 className="font-extrabold text-base leading-tight mb-1">{of.titulo}</h4>
           <p className="text-xs opacity-90">{of.desc}</p>
-        </div>
+        </button>
       ))}
     </div>
   );

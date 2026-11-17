@@ -45,7 +45,7 @@ export const ReportesGeneralesView = () => {
   };
 
   useEffect(() => {
-    fetchReporte();
+    void fetchReporte();
   }, [fechaInicio, fechaFin, sucursalFilter, user]);
 
   const setPreset = (preset) => {
@@ -255,7 +255,7 @@ export const ReportesGeneralesView = () => {
               <tbody className="divide-y divide-stone-100 font-semibold text-stone-700">
                 {comparativa.map((s) => {
                   const totalGlobal = resumen.total_ingresos || 1;
-                  const porcentaje = ((parseFloat(s.total_ventas || 0) / totalGlobal) * 100).toFixed(1);
+                  const porcentaje = ((Number.parseFloat(s.total_ventas || 0) / totalGlobal) * 100).toFixed(1);
 
                   return (
                     <tr key={s.sucursal_id} className="hover:bg-stone-50 transition">
@@ -263,10 +263,10 @@ export const ReportesGeneralesView = () => {
                       <td className="py-3 px-3 font-mono text-[11px] text-stone-500">{s.codigo_tienda}</td>
                       <td className="py-3 px-3 font-black text-stone-800">{s.total_pedidos}</td>
                       <td className="py-3 px-3 font-extrabold text-mass-red">
-                        S/. {parseFloat(s.total_ventas || 0).toFixed(2)}
+                        S/. {Number.parseFloat(s.total_ventas || 0).toFixed(2)}
                       </td>
                       <td className="py-3 px-3 font-bold text-stone-800">
-                        S/. {parseFloat(s.ticket_promedio || 0).toFixed(2)}
+                        S/. {Number.parseFloat(s.ticket_promedio || 0).toFixed(2)}
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
@@ -321,7 +321,7 @@ export const ReportesGeneralesView = () => {
                       <td className="py-2.5 px-2 text-stone-500">{p.categoria}</td>
                       <td className="py-2.5 px-2 text-center font-black text-stone-900">{p.unidades_vendidas}</td>
                       <td className="py-2.5 px-2 text-right font-extrabold text-emerald-700">
-                        S/. {parseFloat(p.ingresos_generados).toFixed(2)}
+                        S/. {Number.parseFloat(p.ingresos_generados).toFixed(2)}
                       </td>
                     </tr>
                   ))
@@ -418,7 +418,7 @@ export const ReportesGeneralesView = () => {
                 <div className="text-lg font-black text-stone-950">{m.total_unidades} unidades</div>
                 <div className="text-[11px] text-stone-500 flex justify-between pt-1 border-t border-stone-200">
                   <span>Operaciones: <strong>{m.total_operaciones}</strong></span>
-                  <span>Valor: <strong>S/. {parseFloat(m.valor_monetario_soles).toFixed(2)}</strong></span>
+                  <span>Valor: <strong>S/. {Number.parseFloat(m.valor_monetario_soles).toFixed(2)}</strong></span>
                 </div>
               </div>
             ))}

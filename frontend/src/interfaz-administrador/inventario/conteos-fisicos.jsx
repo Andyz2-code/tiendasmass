@@ -43,7 +43,7 @@ export const ConteosView = () => {
   };
 
   useEffect(() => {
-    fetchConteos();
+    void fetchConteos();
   }, [selectedBranch]);
 
   const handleOpenConteo = async (id) => {
@@ -81,7 +81,7 @@ export const ConteosView = () => {
       setIsNewCountOpen(false);
       setSuccessMsg('Auditoría cíclica programada y muestra de productos generada.');
       setTimeout(() => setSuccessMsg(''), 3000);
-      fetchConteos();
+      void fetchConteos();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -96,16 +96,16 @@ export const ConteosView = () => {
       const items = Object.entries(physicalCounts)
         .filter(([_, val]) => val.stock_fisico !== '')
         .map(([prodId, val]) => ({
-          producto_id: parseInt(prodId),
-          stock_fisico: parseInt(val.stock_fisico),
+          producto_id: Number.parseInt(prodId, 10),
+          stock_fisico: Number.parseInt(val.stock_fisico, 10),
           justificacion: val.justificacion
         }));
 
       await api.post(`/conteos/${selectedConteo.id}/guardar`, { items });
       setSuccessMsg('Tomas físicas guardadas.');
       setTimeout(() => setSuccessMsg(''), 3000);
-      handleOpenConteo(selectedConteo.id);
-      fetchConteos();
+      void handleOpenConteo(selectedConteo.id);
+      void fetchConteos();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -126,8 +126,8 @@ export const ConteosView = () => {
       await api.post(`/conteos/${selectedConteo.id}/conciliar`, {});
       setSuccessMsg('¡Conciliación completada! Kardex e inventario actualizados con éxito.');
       setTimeout(() => setSuccessMsg(''), 4000);
-      handleOpenConteo(selectedConteo.id);
-      fetchConteos();
+      void handleOpenConteo(selectedConteo.id);
+      void fetchConteos();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -157,7 +157,7 @@ export const ConteosView = () => {
             <span>Programar Conteo Cíclico</span>
           </button>
           <button
-            onClick={fetchConteos}
+            onClick={() => { void fetchConteos(); }}
             className="p-2 rounded-xl bg-white border border-stone-200 text-stone-600 hover:bg-stone-50"
           >
             <RefreshCw className="w-4 h-4" />
@@ -205,7 +205,7 @@ export const ConteosView = () => {
                   <td className="py-3 px-4 text-center font-bold">{c.items_contados || 0} / {c.total_items}</td>
                   <td className="py-3 px-4 text-center">
                     <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      parseInt(c.items_con_discrepancia || 0) > 0 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
+                      Number.parseInt(c.items_con_discrepancia || 0, 10) > 0 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
                     }`}>
                       {c.items_con_discrepancia || 0} dif.
                     </span>
@@ -283,7 +283,7 @@ export const ConteosView = () => {
                 <tbody className="divide-y divide-stone-200 font-medium">
                   {selectedConteo.detalles?.map((det) => {
                     const currentVal = physicalCounts[det.producto_id]?.stock_fisico ?? '';
-                    const fisicoNum = currentVal !== '' ? parseInt(currentVal) : null;
+                    const fisicoNum = currentVal !== '' ? Number.parseInt(currentVal, 10) : null;
                     const diff = fisicoNum !== null ? fisicoNum - det.stock_sistema : null;
 
                     return (
@@ -377,8 +377,9 @@ export const ConteosView = () => {
       >
         <form onSubmit={handleCreateCount} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Estrato ABC a Auditar:</label>
+            <label htmlFor="conteo_estrato_abc" className="block font-bold text-stone-700 mb-1">Estrato ABC a Auditar:</label>
             <select
+              id="conteo_estrato_abc"
               value={estratoAbc}
               onChange={(e) => {
                 setEstratoAbc(e.target.value);
@@ -397,8 +398,9 @@ export const ConteosView = () => {
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Observaciones / Motivo:</label>
+            <label htmlFor="conteo_observaciones" className="block font-bold text-stone-700 mb-1">Observaciones / Motivo:</label>
             <textarea
+              id="conteo_observaciones"
               rows="3"
               value={observaciones}
               onChange={(e) => setObservaciones(e.target.value)}

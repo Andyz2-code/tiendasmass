@@ -12,7 +12,7 @@ export const formatDate = (dateStr) => {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-PE', {
+    return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleDateString('es-PE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric'
@@ -26,7 +26,7 @@ export const formatDateTime = (dateStr) => {
   if (!dateStr) return '—';
   try {
     const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? dateStr : d.toLocaleString('es-PE', {
+    return Number.isNaN(d.getTime()) ? dateStr : d.toLocaleString('es-PE', {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',

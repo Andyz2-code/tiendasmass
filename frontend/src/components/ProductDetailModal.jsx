@@ -18,8 +18,8 @@ export const ProductDetailModal = ({
 
   if (!isOpen || !product) return null;
 
-  const stock = parseInt(product.stock_actual || 0);
-  const priceNum = parseFloat(product.precio_venta || 0);
+  const stock = Number.parseInt(product.stock_actual || 0, 10);
+  const priceNum = Number.parseFloat(product.precio_venta || 0);
   const origPrice = (priceNum * 1.25).toFixed(2);
   const subtotal = (priceNum * qty).toFixed(2);
 
@@ -41,7 +41,12 @@ export const ProductDetailModal = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="fixed inset-0" onClick={onClose}></div>
+      <button
+        type="button"
+        aria-label="Cerrar modal"
+        className="fixed inset-0 w-full h-full bg-transparent cursor-default border-none p-0"
+        onClick={onClose}
+      />
 
       <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden max-h-[92vh] flex flex-col z-10 animate-in zoom-in-95 duration-200">
         

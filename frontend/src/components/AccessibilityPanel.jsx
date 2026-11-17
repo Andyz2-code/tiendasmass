@@ -76,9 +76,9 @@ export const AccessibilityPanel = () => {
 
           {/* 1. Tamaño del Texto */}
           <div className="space-y-1.5">
-            <label className="font-bold text-stone-800 flex items-center gap-1.5">
+            <span className="font-bold text-stone-800 flex items-center gap-1.5">
               <span>🔤 Tamaño del Texto</span>
-            </label>
+            </span>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { id: 'normal', label: 'Normal' },
@@ -103,9 +103,9 @@ export const AccessibilityPanel = () => {
 
           {/* 2. Contraste Visual */}
           <div className="space-y-1.5">
-            <label className="font-bold text-stone-800 flex items-center gap-1.5">
+            <span className="font-bold text-stone-800 flex items-center gap-1.5">
               <span>🎨 Contraste Visual</span>
-            </label>
+            </span>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { id: 'normal', label: 'Estándar' },
@@ -130,13 +130,15 @@ export const AccessibilityPanel = () => {
 
           {/* 3. Resaltar Foco Teclado */}
           <div className="pt-1">
-            <label className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-50 border border-stone-200 cursor-pointer hover:bg-stone-100 select-none">
+            <label htmlFor="a11y_high_focus" className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-50 border border-stone-200 cursor-pointer hover:bg-stone-100 select-none">
               <div>
                 <span className="font-bold text-stone-900 block">Resaltar Foco Teclado</span>
                 <span className="text-[10px] text-stone-500">Bordes visibles con Tab</span>
               </div>
               <input
+                id="a11y_high_focus"
                 type="checkbox"
+                aria-label="Resaltar Foco Teclado"
                 checked={a11yState.highFocus}
                 onChange={(e) => handleHighFocus(e.target.checked)}
                 className="w-4 h-4 text-mass-red accent-mass-red rounded cursor-pointer"

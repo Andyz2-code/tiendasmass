@@ -15,6 +15,15 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+const getSecureDocRef = () => {
+  const arr = new Uint32Array(1);
+  if (typeof window !== 'undefined' && window.crypto) {
+    window.crypto.getRandomValues(arr);
+    return 'FAC-PROV-' + (1000 + (arr[0] % 9000));
+  }
+  return 'FAC-PROV-' + (1000 + (Date.now() % 9000));
+};
+
 export const AlmacenView = () => {
   const { selectedBranch } = useBranch();
   const [pedidos, setPedidos] = useState([]);
@@ -34,7 +43,7 @@ export const AlmacenView = () => {
     fecha_ingreso: new Date().toISOString().split('T')[0],
     fecha_vencimiento: '',
     ubicacion_almacen: 'PASAJE-A-ESTANTE-1',
-    documento_referencia: 'FAC-PROV-' + Math.floor(1000 + Math.random() * 9000)
+    documento_referencia: getSecureDocRef()
   });
 
   const fetchData = async () => {
@@ -55,7 +64,7 @@ export const AlmacenView = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [selectedBranch]);
 
   const handleUpdateStatus = async (pedidoId, nuevoEstado) => {
@@ -64,7 +73,7 @@ export const AlmacenView = () => {
       await api.put(`/pedidos/${pedidoId}/estado`, { estado_pedido: nuevoEstado });
       setSuccessMsg(`Pedido ${nuevoEstado.toLowerCase()} exitosamente.`);
       setTimeout(() => setSuccessMsg(''), 3000);
-      fetchData();
+      void fetchData();
       if (selectedPedido?.id === pedidoId) {
         const updated = await api.get(`/pedidos/${pedidoId}`);
         setSelectedPedido(updated.data);
@@ -95,9 +104,9 @@ export const AlmacenView = () => {
         fecha_ingreso: new Date().toISOString().split('T')[0],
         fecha_vencimiento: '',
         ubicacion_almacen: 'PASAJE-A-ESTANTE-1',
-        documento_referencia: 'FAC-PROV-' + Math.floor(1000 + Math.random() * 9000)
+        documento_referencia: getSecureDocRef()
       });
-      fetchData();
+      void fetchData();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -136,7 +145,7 @@ export const AlmacenView = () => {
             <span>Registrar Compra / Lote</span>
           </button>
           <button
-            onClick={fetchData}
+            onClick={() => { void fetchData(); }}
             className="p-2 rounded-xl bg-white border border-stone-200 text-stone-600 hover:bg-stone-50"
           >
             <RefreshCw className="w-4 h-4" />
@@ -176,8 +185,16 @@ export const AlmacenView = () => {
                 {colPedidos.map((ped) => (
                   <div
                     key={ped.id}
-                    onClick={() => openPedidoDetails(ped.id)}
-                    className="p-3 bg-stone-50 hover:bg-amber-50/60 rounded-xl border border-stone-200 cursor-pointer transition space-y-2"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { void openPedidoDetails(ped.id); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        void openPedidoDetails(ped.id);
+                      }
+                    }}
+                    className="p-3 bg-stone-50 hover:bg-amber-50/60 rounded-xl border border-stone-200 cursor-pointer transition space-y-2 focus:outline-none focus:ring-2 focus:ring-amber-400"
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs font-bold text-stone-900">{ped.codigo_pedido}</span>
@@ -191,11 +208,11 @@ export const AlmacenView = () => {
                     </div>
 
                     <div className="flex items-center justify-between text-xs pt-1 border-t border-stone-200">
-                      <span className="text-stone-500 font-medium">S/. {parseFloat(ped.total).toFixed(2)}</span>
+                      <span className="text-stone-500 font-medium">S/. {Number.parseFloat(ped.total).toFixed(2)}</span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleUpdateStatus(ped.id, col.next);
+                          void handleUpdateStatus(ped.id, col.next);
                         }}
                         disabled={actionLoading}
                         className="px-2 py-1 bg-stone-900 hover:bg-black text-amber-400 font-bold text-[10px] rounded-lg transition"
@@ -292,8 +309,9 @@ export const AlmacenView = () => {
       >
         <form onSubmit={handleRecepcionSubmit} className="space-y-3 text-xs">
           <div>
-            <label className="block font-semibold text-stone-700 mb-1">Producto:</label>
+            <label htmlFor="lote_producto_id" className="block font-semibold text-stone-700 mb-1">Producto:</label>
             <select
+              id="lote_producto_id"
               required
               value={formData.producto_id}
               onChange={(e) => setFormData({ ...formData, producto_id: e.target.value })}
@@ -310,8 +328,9 @@ export const AlmacenView = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Código de Lote:</label>
+              <label htmlFor="lote_codigo_lote" className="block font-semibold text-stone-700 mb-1">Código de Lote:</label>
               <input
+                id="lote_codigo_lote"
                 type="text"
                 required
                 value={formData.codigo_lote}
@@ -321,8 +340,9 @@ export const AlmacenView = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">N° Doc. Factura / Guía:</label>
+              <label htmlFor="lote_doc_ref" className="block font-semibold text-stone-700 mb-1">N° Doc. Factura / Guía:</label>
               <input
+                id="lote_doc_ref"
                 type="text"
                 required
                 value={formData.documento_referencia}
@@ -334,8 +354,9 @@ export const AlmacenView = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Cantidad Comprada (Unidades):</label>
+              <label htmlFor="lote_cantidad" className="block font-semibold text-stone-700 mb-1">Cantidad Comprada (Unidades):</label>
               <input
+                id="lote_cantidad"
                 type="number"
                 min="1"
                 required
@@ -346,8 +367,9 @@ export const AlmacenView = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Costo Unitario (S/.):</label>
+              <label htmlFor="lote_costo_unit" className="block font-semibold text-stone-700 mb-1">Costo Unitario (S/.):</label>
               <input
+                id="lote_costo_unit"
                 type="number"
                 step="0.01"
                 min="0.10"
@@ -362,8 +384,9 @@ export const AlmacenView = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Fecha de Ingreso:</label>
+              <label htmlFor="lote_fecha_ingreso" className="block font-semibold text-stone-700 mb-1">Fecha de Ingreso:</label>
               <input
+                id="lote_fecha_ingreso"
                 type="date"
                 required
                 value={formData.fecha_ingreso}
@@ -372,8 +395,9 @@ export const AlmacenView = () => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Fecha Vencimiento (NIC 2):</label>
+              <label htmlFor="lote_fecha_venc" className="block font-semibold text-stone-700 mb-1">Fecha Vencimiento (NIC 2):</label>
               <input
+                id="lote_fecha_venc"
                 type="date"
                 value={formData.fecha_vencimiento}
                 onChange={(e) => setFormData({ ...formData, fecha_vencimiento: e.target.value })}
@@ -383,8 +407,9 @@ export const AlmacenView = () => {
           </div>
 
           <div>
-            <label className="block font-semibold text-stone-700 mb-1">Ubicación en Almacén:</label>
+            <label htmlFor="lote_ubicacion" className="block font-semibold text-stone-700 mb-1">Ubicación en Almacén:</label>
             <input
+              id="lote_ubicacion"
               type="text"
               value={formData.ubicacion_almacen}
               onChange={(e) => setFormData({ ...formData, ubicacion_almacen: e.target.value })}

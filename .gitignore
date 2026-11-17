@@ -24,7 +24,8 @@ Thumbs.db
 *.tmp
 *.cache
 
-# Archivos generados de scratch
+# Archivos generados de scratch y SonarQube
 scratch/
+.scannerwork/
 ~$*
 

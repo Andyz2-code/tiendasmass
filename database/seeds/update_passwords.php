@@ -1,7 +1,6 @@
 <?php
-$pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=tiendas_mass_db', 'root', '', [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-]);
+require_once __DIR__ . '/../../backend/app/Helpers/Database.php';
+$pdo = \App\Helpers\Database::getConnection();
 
 $hash = password_hash('123456', PASSWORD_BCRYPT);
 

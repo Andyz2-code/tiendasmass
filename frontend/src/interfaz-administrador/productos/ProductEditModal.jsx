@@ -145,7 +145,7 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
 
         {/* Sección de Imagen con Vista Previa */}
         <div className="p-3 bg-stone-50 rounded-2xl border border-stone-200 space-y-2">
-          <label className="block font-bold text-stone-800 flex items-center gap-1.5">
+          <label htmlFor="edit_image_file" className="block font-bold text-stone-800 flex items-center gap-1.5 cursor-pointer">
             <Image className="w-4 h-4 text-amber-600" />
             <span>Imagen del Producto (Formato JPG, PNG, WEBP · Máx 5MB)</span>
           </label>
@@ -168,6 +168,7 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
             {/* Selector de Archivo e Información */}
             <div className="flex-1 space-y-1.5 w-full">
               <input
+                id="edit_image_file"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={handleImageFileChange}
@@ -187,8 +188,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
         {/* Campos del Producto */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Nombre Comercial:</label>
+            <label htmlFor="edit_nombre" className="block font-bold text-stone-700 mb-1">Nombre Comercial:</label>
             <input
+              id="edit_nombre"
               type="text"
               required
               value={formData.nombre}
@@ -198,8 +200,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Categoría:</label>
+            <label htmlFor="edit_categoria" className="block font-bold text-stone-700 mb-1">Categoría:</label>
             <select
+              id="edit_categoria"
               value={formData.categoria_id}
               onChange={(e) => setFormData({ ...formData, categoria_id: e.target.value })}
               className="w-full p-2 border border-stone-300 rounded-xl focus:ring-2 focus:ring-amber-400 focus:outline-none font-bold"
@@ -211,8 +214,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Código SKU:</label>
+            <label htmlFor="edit_sku" className="block font-bold text-stone-700 mb-1">Código SKU:</label>
             <input
+              id="edit_sku"
               type="text"
               required
               value={formData.codigo_sku}
@@ -222,8 +226,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Código de Barras:</label>
+            <label htmlFor="edit_barcode" className="block font-bold text-stone-700 mb-1">Código de Barras:</label>
             <input
+              id="edit_barcode"
               type="text"
               required
               value={formData.codigo_barras}
@@ -233,8 +238,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Precio de Venta (S/.):</label>
+            <label htmlFor="edit_precio" className="block font-bold text-stone-700 mb-1">Precio de Venta (S/.):</label>
             <input
+              id="edit_precio"
               type="number"
               step="0.01"
               min="0.01"
@@ -246,8 +252,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Costo Base / Compra (S/.):</label>
+            <label htmlFor="edit_costo" className="block font-bold text-stone-700 mb-1">Costo Base / Compra (S/.):</label>
             <input
+              id="edit_costo"
               type="number"
               step="0.01"
               min="0.01"
@@ -259,8 +266,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Stock Actual (Sucursal):</label>
+            <label htmlFor="edit_stock" className="block font-bold text-stone-700 mb-1">Stock Actual (Sucursal):</label>
             <input
+              id="edit_stock"
               type="number"
               min="0"
               value={formData.stock_actual}
@@ -270,8 +278,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
           </div>
 
           <div>
-            <label className="block font-bold text-stone-700 mb-1">Unidad de Medida:</label>
+            <label htmlFor="edit_unidad" className="block font-bold text-stone-700 mb-1">Unidad de Medida:</label>
             <select
+              id="edit_unidad"
               value={formData.unidad_medida}
               onChange={(e) => setFormData({ ...formData, unidad_medida: e.target.value })}
               className="w-full p-2 border border-stone-300 rounded-xl font-bold"
@@ -288,8 +297,9 @@ export const ProductEditModal = ({ isOpen, onClose, product, sucursalId, onProdu
         </div>
 
         <div>
-          <label className="block font-bold text-stone-700 mb-1">Descripción del Producto:</label>
+          <label htmlFor="edit_descripcion" className="block font-bold text-stone-700 mb-1">Descripción del Producto:</label>
           <textarea
+            id="edit_descripcion"
             rows="2"
             value={formData.descripcion}
             onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}

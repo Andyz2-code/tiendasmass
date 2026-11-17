@@ -120,15 +120,15 @@ export const CheckoutView = () => {
       }
     };
 
-    checkPickupStock();
+    void checkPickupStock();
   }, [cart, selectedBranch?.id, tipoEntrega]);
 
   const costoEnvio =
     tipoEntrega === 'DELIVERY' && deliveryData?.isWithinCoverage
-      ? parseFloat((4.0 + Math.max(0, deliveryData.distanceKm - 1) * 1.5).toFixed(2))
+      ? Number.parseFloat((4.0 + Math.max(0, deliveryData.distanceKm - 1) * 1.5).toFixed(2))
       : 0.0;
 
-  const totalFinal = parseFloat((totalMercaderia + costoEnvio).toFixed(2));
+  const totalFinal = Number.parseFloat((totalMercaderia + costoEnvio).toFixed(2));
 
   // Paso 1: Validar Pago y Registrar Orden
   const handlePlaceOrder = async (e) => {
@@ -306,19 +306,19 @@ export const CheckoutView = () => {
               <div className="w-full sm:w-64 space-y-1">
                 <div className="flex justify-between text-stone-500">
                   <span>Op. Gravadas (Sin IGV):</span>
-                  <span>S/. {parseFloat(boleta?.totales?.op_gravadas || 0).toFixed(2)}</span>
+                  <span>S/. {Number.parseFloat(boleta?.totales?.op_gravadas || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-stone-500">
                   <span>IGV (18%):</span>
-                  <span>S/. {parseFloat(boleta?.totales?.igv_18 || 0).toFixed(2)}</span>
+                  <span>S/. {Number.parseFloat(boleta?.totales?.igv_18 || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-stone-500">
                   <span>Costo Envío:</span>
-                  <span>S/. {parseFloat(boleta?.totales?.costo_envio || 0).toFixed(2)}</span>
+                  <span>S/. {Number.parseFloat(boleta?.totales?.costo_envio || 0).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-black text-sm text-stone-950 pt-1 border-t">
                   <span>Importe Total:</span>
-                  <span className="text-mass-red">S/. {parseFloat(boleta?.totales?.importe_total || 0).toFixed(2)}</span>
+                  <span className="text-mass-red">S/. {Number.parseFloat(boleta?.totales?.importe_total || 0).toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -425,10 +425,11 @@ export const CheckoutView = () => {
                 Ingresa únicamente tu teléfono y correo para enviarte tu boleta electrónica:
               </div>
               <div>
-                <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                <label htmlFor="drawer_guest_phone" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                   <Phone className="w-3.5 h-3.5 text-mass-red" /> Número Telefónico (SMS / WhatsApp) *
                 </label>
                 <input
+                  id="drawer_guest_phone"
                   type="tel"
                   required
                   value={guestPhone}
@@ -438,10 +439,11 @@ export const CheckoutView = () => {
                 />
               </div>
               <div>
-                <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                <label htmlFor="drawer_guest_email" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                   <Mail className="w-3.5 h-3.5 text-mass-red" /> Correo Electrónico (Boleta Electrónica) *
                 </label>
                 <input
+                  id="drawer_guest_email"
                   type="email"
                   required
                   value={guestEmail}
@@ -467,8 +469,9 @@ export const CheckoutView = () => {
                 Ingresa con tu cuenta de Tiendas Mass para vincular tu compra:
               </div>
               <div>
-                <label className="block font-bold text-stone-700 mb-1">Correo Electrónico *</label>
+                <label htmlFor="drawer_login_email" className="block font-bold text-stone-700 mb-1">Correo Electrónico *</label>
                 <input
+                  id="drawer_login_email"
                   type="email"
                   required
                   value={loginEmail}
@@ -477,8 +480,9 @@ export const CheckoutView = () => {
                 />
               </div>
               <div>
-                <label className="block font-bold text-stone-700 mb-1">Contraseña *</label>
+                <label htmlFor="drawer_login_pass" className="block font-bold text-stone-700 mb-1">Contraseña *</label>
                 <input
+                  id="drawer_login_pass"
                   type="password"
                   required
                   value={loginPassword}
@@ -618,10 +622,11 @@ export const CheckoutView = () => {
               )}
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1.5">
+                <label htmlFor="drawer_fecha_recojo" className="block font-bold text-stone-700 mb-1.5">
                   Selecciona la Fecha de Recojo {pickupValidation.bloqueo_mismo_dia ? `(Mínimo: ${pickupValidation.fecha_minima_recojo})` : `(Desde hoy: ${todayStr})`} *
                 </label>
                 <input
+                  id="drawer_fecha_recojo"
                   type="date"
                   required
                   min={pickupValidation.fecha_minima_recojo}
@@ -649,10 +654,10 @@ export const CheckoutView = () => {
               </h3>
               <GoogleMapPicker
                 branchLocation={{
-                  lat: parseFloat(selectedBranch?.latitud || -12.0684),
-                  lng: parseFloat(selectedBranch?.longitud || -75.21),
+                  lat: Number.parseFloat(selectedBranch?.latitud || -12.0684),
+                  lng: Number.parseFloat(selectedBranch?.longitud || -75.21),
                   name: selectedBranch?.nombre || 'Tienda Mass Centro',
-                  radio: parseFloat(selectedBranch?.radio_cobertura_km || 5.0)
+                  radio: Number.parseFloat(selectedBranch?.radio_cobertura_km || 5.0)
                 }}
                 onLocationSelect={(data) => setDeliveryData(data)}
               />
@@ -710,7 +715,7 @@ export const CheckoutView = () => {
                     <span className="text-stone-700">{item.producto.nombre}</span>
                   </div>
                   <div className="font-semibold text-stone-900 shrink-0">
-                    S/. {(parseFloat(item.producto.precio_venta) * item.cantidad).toFixed(2)}
+                    S/. {(Number.parseFloat(item.producto.precio_venta) * item.cantidad).toFixed(2)}
                   </div>
                 </div>
               ))}

@@ -31,7 +31,7 @@ export const BranchProvider = ({ children }) => {
   };
 
   useEffect(() => {
-    fetchBranches();
+    void fetchBranches();
   }, []);
 
   const selectBranch = (branchOrId) => {

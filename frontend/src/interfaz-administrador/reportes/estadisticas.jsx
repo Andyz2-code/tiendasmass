@@ -57,7 +57,7 @@ export const ReportesView = () => {
       ]);
       const rawMermas = mermasRes.data || {};
       if (Array.isArray(rawMermas)) {
-        const totalSoles = rawMermas.reduce((acc, r) => acc + parseFloat(r.perdida_estimada_soles || 0), 0);
+        const totalSoles = rawMermas.reduce((acc, r) => acc + Number.parseFloat(r.perdida_estimada_soles || 0), 0);
         setMermasData({ total_perdida_soles: totalSoles, detalles: rawMermas });
       } else {
         setMermasData(rawMermas);
@@ -73,7 +73,7 @@ export const ReportesView = () => {
   useEffect(() => {
     if (selectedBranch?.id) {
       setMermaForm((prev) => ({ ...prev, sucursal_id: selectedBranch.id }));
-      fetchReportsAndInventory(selectedBranch.id);
+      void fetchReportsAndInventory(selectedBranch.id);
     }
   }, [selectedBranch]);
 
@@ -144,7 +144,7 @@ export const ReportesView = () => {
         mensaje: res.message || 'Desmedro registrado y stock actualizado.',
         data: res.data
       });
-      fetchReportsAndInventory(Number(mermaForm.sucursal_id));
+      void fetchReportsAndInventory(Number(mermaForm.sucursal_id));
     } catch (err) {
       setErrorMsg(err.message || 'Error al registrar el desmedro.');
     } finally {
@@ -182,7 +182,7 @@ export const ReportesView = () => {
             <span>Imprimir Reporte</span>
           </button>
           <button
-            onClick={() => fetchReportsAndInventory(selectedBranch?.id)}
+            onClick={() => { void fetchReportsAndInventory(selectedBranch?.id); }}
             className="p-2.5 rounded-xl bg-white border border-stone-200 text-stone-600 hover:bg-stone-50"
             title="Refrescar"
           >
@@ -226,7 +226,7 @@ export const ReportesView = () => {
               Pérdida Valorada por Desmedros (NIC 2)
             </span>
             <div className="text-2xl font-extrabold text-red-900 mt-1">
-              S/. {parseFloat(mermasData.total_perdida_soles || 0).toFixed(2)}
+              S/. {Number.parseFloat(mermasData.total_perdida_soles || 0).toFixed(2)}
             </div>
             <span className="text-[10px] text-red-700 font-medium mt-0.5 block">
               Mermas y bajas contabilizadas en Kardex
@@ -318,7 +318,7 @@ export const ReportesView = () => {
                     </span>
                   </td>
                   <td className="py-3 px-4 text-right font-extrabold text-red-600">
-                    S/. {parseFloat(m.perdida_estimada_soles || 0).toFixed(2)}
+                    S/. {Number.parseFloat(m.perdida_estimada_soles || 0).toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-stone-700 text-[11px] max-w-xs">
                     {m.observaciones}
@@ -385,11 +385,12 @@ export const ReportesView = () => {
 
               {/* 2. Selección de Sucursal */}
               <div>
-                <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                <label htmlFor="merma_sucursal_id" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 text-mass-red" /> Sucursal Afectada *
                 </label>
                 {isAdmin ? (
                   <select
+                    id="merma_sucursal_id"
                     required
                     value={mermaForm.sucursal_id}
                     onChange={(e) => handleBranchChangeInModal(e.target.value)}
@@ -411,8 +412,9 @@ export const ReportesView = () => {
 
               {/* 3. Selección de Producto */}
               <div>
-                <label className="block font-bold text-stone-700 mb-1">Producto a Dar de Baja *</label>
+                <label htmlFor="merma_producto_id" className="block font-bold text-stone-700 mb-1">Producto a Dar de Baja *</label>
                 <select
+                  id="merma_producto_id"
                   required
                   value={mermaForm.producto_id}
                   onChange={(e) => setMermaForm({ ...mermaForm, producto_id: e.target.value })}
@@ -450,8 +452,9 @@ export const ReportesView = () => {
               {/* 4. Cantidad y Motivo del Desmedro */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">Cantidad de Baja *</label>
+                  <label htmlFor="merma_cantidad" className="block font-bold text-stone-700 mb-1">Cantidad de Baja *</label>
                   <input
+                    id="merma_cantidad"
                     type="number"
                     min="1"
                     max={selectedProductInfo?.stock_actual || 999}
@@ -462,8 +465,9 @@ export const ReportesView = () => {
                   />
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block font-bold text-stone-700 mb-1">Motivo del Desmedro *</label>
+                  <label htmlFor="merma_motivo" className="block font-bold text-stone-700 mb-1">Motivo del Desmedro *</label>
                   <select
+                    id="merma_motivo"
                     required
                     value={mermaForm.motivo}
                     onChange={(e) => setMermaForm({ ...mermaForm, motivo: e.target.value })}
@@ -478,8 +482,9 @@ export const ReportesView = () => {
 
               {/* 5. Detalle / Justificación */}
               <div>
-                <label className="block font-bold text-stone-700 mb-1">Observaciones / Detalle de la Inspección</label>
+                <label htmlFor="merma_observaciones" className="block font-bold text-stone-700 mb-1">Observaciones / Detalle de la Inspección</label>
                 <textarea
+                  id="merma_observaciones"
                   rows="2"
                   value={mermaForm.observaciones}
                   onChange={(e) => setMermaForm({ ...mermaForm, observaciones: e.target.value })}

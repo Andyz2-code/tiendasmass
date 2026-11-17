@@ -47,7 +47,7 @@ export const DashboardView = () => {
   };
 
   useEffect(() => {
-    fetchDashboardData();
+    void fetchDashboardData();
   }, [selectedBranch]);
 
   if (loading) {
@@ -140,7 +140,7 @@ export const DashboardView = () => {
           <div>
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Ventas del Mes</span>
             <div className="text-2xl font-extrabold text-stone-900 mt-1">
-              S/. {parseFloat(kpis?.ventas_mes || 0).toFixed(2)}
+              S/. {Number.parseFloat(kpis?.ventas_mes || 0).toFixed(2)}
             </div>
             <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3" /> Transacciones en regla
@@ -170,7 +170,7 @@ export const DashboardView = () => {
           <div>
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valor Inventario (Costo)</span>
             <div className="text-2xl font-extrabold text-stone-900 mt-1">
-              S/. {parseFloat(kpis?.valor_inventario_soles || 0).toFixed(2)}
+              S/. {Number.parseFloat(kpis?.valor_inventario_soles || 0).toFixed(2)}
             </div>
             <span className="text-[10px] text-stone-500 font-medium mt-1 block">
               Valuado al costo base

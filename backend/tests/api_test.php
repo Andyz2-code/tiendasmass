@@ -31,7 +31,11 @@ try {
 echo "[2] Probando login de Administrador y JWT... ";
 try {
     $authService = new \App\Services\AuthService();
-    $loginRes = $authService->loginUser('admin@tiendasmass.pe', 'Admin123!');
+    try {
+        $loginRes = $authService->loginUser('admin@tiendasmass.pe', '123456');
+    } catch (\Throwable $e) {
+        $loginRes = $authService->loginUser('admin@tiendasmass.pe', 'Admin123!');
+    }
     assert(!empty($loginRes['token']), "Token no generado");
     assert($loginRes['user']['rol_nombre'] === 'Administrador', "Rol no coincide");
     echo "OK (JWT emitido exitosamente)\n";
@@ -82,6 +86,10 @@ try {
 // 6. Probar Transacción Atómica de Venta con Asignación PEPS y Kardex
 echo "[6] Probando procesamiento de pedido atómico con algoritmo PEPS (NIC 2)... ";
 try {
+    // Garantizar stock suficiente en lotes para idempotencia del test
+    $pdo->exec("UPDATE inventarios SET stock_actual = GREATEST(stock_actual, 20) WHERE sucursal_id = 1 AND producto_id IN (1, 5)");
+    $pdo->exec("UPDATE lotes SET cantidad_disponible = GREATEST(cantidad_disponible, 20), estado = 'DISPONIBLE' WHERE sucursal_id = 1 AND producto_id IN (1, 5)");
+
     $orderService = new \App\Services\OrderProcessingService();
     $orderPayload = [
         'sucursal_id' => 1,
@@ -116,9 +124,14 @@ try {
     $orderService->processOrder([
         'sucursal_id' => 1,
         'cliente_id'  => 1,
-        'tipo_entrega'=> 'RETIRO_TIENDA',
+        'tipo_entrega'=> 'DELIVERY',
         'items'       => [
             ['producto_id' => 1, 'cantidad' => 999999] // Cantidad imposible
+        ],
+        'delivery_info' => [
+            'direccion_completa' => 'Jr. Puno 345, Huancayo',
+            'latitud'            => -12.0691,
+            'longitud'           => -75.2092
         ]
     ]);
     echo "FALLÓ: Se debió haber rechazado la venta por stock insuficiente.\n";

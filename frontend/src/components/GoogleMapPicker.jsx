@@ -32,7 +32,7 @@ export const GoogleMapPicker = ({
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return parseFloat((R * c * 1.25).toFixed(2)); // Factor vial 1.25x
+    return Number.parseFloat((R * c * 1.25).toFixed(2)); // Factor vial 1.25x
   };
 
   useEffect(() => {
@@ -125,9 +125,9 @@ export const GoogleMapPicker = ({
 
       {/* Selectores rápidos de prueba para Huancayo */}
       <div>
-        <label className="block text-xs font-semibold text-stone-700 mb-2">
+        <span className="block text-xs font-semibold text-stone-700 mb-2">
           Puntos de prueba georreferenciados (Huancayo):
-        </label>
+        </span>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {presets.map((p, idx) => (
             <button
@@ -150,8 +150,9 @@ export const GoogleMapPicker = ({
       {/* Formulario de entrada de dirección interactiva */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
         <div className="md:col-span-2">
-          <label className="block font-medium text-stone-700 mb-1">Dirección de Entrega Exacta:</label>
+          <label htmlFor="map_customer_address" className="block font-medium text-stone-700 mb-1">Dirección de Entrega Exacta:</label>
           <input
+            id="map_customer_address"
             type="text"
             value={customerLoc.address}
             onChange={(e) => setCustomerLoc({ ...customerLoc, address: e.target.value })}
@@ -160,8 +161,9 @@ export const GoogleMapPicker = ({
           />
         </div>
         <div>
-          <label className="block font-medium text-stone-700 mb-1">Referencia:</label>
+          <label htmlFor="map_customer_ref" className="block font-medium text-stone-700 mb-1">Referencia:</label>
           <input
+            id="map_customer_ref"
             type="text"
             value={customerLoc.reference || ''}
             onChange={(e) => setCustomerLoc({ ...customerLoc, reference: e.target.value })}

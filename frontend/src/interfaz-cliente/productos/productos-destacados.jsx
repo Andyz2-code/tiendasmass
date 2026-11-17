@@ -29,7 +29,11 @@ export const ProductosDestacados = ({
             key={prod.id || prod.codigo}
             className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-xs hover:shadow-lg transition-all flex flex-col justify-between group"
           >
-            <div className="p-3 cursor-pointer" onClick={() => onSelectProduct(prod)}>
+            <button
+              type="button"
+              className="w-full text-left p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-mass-yellow rounded-xl"
+              onClick={() => onSelectProduct(prod)}
+            >
               <div className="h-32 w-full flex items-center justify-center bg-stone-50 rounded-xl mb-2 overflow-hidden relative">
                 <img
                   src={prod.imagen_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=300'}
@@ -51,7 +55,7 @@ export const ProductosDestacados = ({
               <p className="text-stone-900 font-black text-sm">
                 S/ {Number(prod.precio_venta || prod.precio || 0).toFixed(2)}
               </p>
-            </div>
+            </button>
 
             <div className="p-3 pt-0">
               <button

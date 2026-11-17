@@ -55,7 +55,7 @@ export const UsuariosAdminView = () => {
   };
 
   useEffect(() => {
-    loadUsuarios();
+    void loadUsuarios();
   }, []);
 
   const handleOpenModal = () => {
@@ -94,7 +94,7 @@ export const UsuariosAdminView = () => {
       setIsModalOpen(false);
       setSuccessMsg(res.message || 'Supervisor registrado exitosamente con su sucursal asignada.');
       setTimeout(() => setSuccessMsg(''), 5000);
-      loadUsuarios();
+      void loadUsuarios();
     } catch (err) {
       setErrorMsg(err.message || 'Error al registrar el usuario.');
     } finally {
@@ -106,7 +106,7 @@ export const UsuariosAdminView = () => {
     if (u.id === 1) return;
     try {
       await api.patch(`/usuarios/${u.id}/toggle`);
-      loadUsuarios();
+      void loadUsuarios();
     } catch (err) {
       alert(err.message);
     }
@@ -201,11 +201,10 @@ export const UsuariosAdminView = () => {
                     <td className="py-3 px-4 text-stone-600 font-mono text-[11px]">{u.email}</td>
                     <td className="py-3 px-4 text-stone-600">{u.telefono || '-'}</td>
                     <td className="py-3 px-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                        u.rol_nombre === 'Administrador'
-                          ? 'bg-red-100 text-red-800 border border-red-200'
-                          : 'bg-amber-100 text-amber-900 border border-amber-300'
-                      }`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${u.rol_nombre === 'Administrador'
+                        ? 'bg-red-100 text-red-800 border border-red-200'
+                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}>
                         {u.rol_nombre}
                       </span>
                     </td>
@@ -221,9 +220,8 @@ export const UsuariosAdminView = () => {
                       )}
                     </td>
                     <td className="py-3 px-4 text-center">
-                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${
-                        Number(u.estado) === 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
-                      }`}>
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase ${Number(u.estado) === 1 ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                        }`}>
                         {Number(u.estado) === 1 ? 'ACTIVO' : 'INACTIVO'}
                       </span>
                     </td>
@@ -278,8 +276,9 @@ export const UsuariosAdminView = () => {
             <form onSubmit={handleSubmit} className="space-y-3.5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">Rol del Usuario *</label>
+                  <label htmlFor="user_rol_id" className="block font-bold text-stone-700 mb-1">Rol del Usuario *</label>
                   <select
+                    id="user_rol_id"
                     value={formData.rol_id}
                     onChange={(e) => setFormData({ ...formData, rol_id: Number(e.target.value) })}
                     className="w-full p-2.5 border border-stone-300 rounded-xl font-extrabold text-stone-900 bg-amber-50/60 focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -291,10 +290,11 @@ export const UsuariosAdminView = () => {
 
                 {Number(formData.rol_id) === 2 && (
                   <div>
-                    <label className="block font-extrabold text-mass-red mb-1">
+                    <label htmlFor="user_sucursal_id" className="block font-extrabold text-mass-red mb-1">
                       🏢 Sucursal que Administrará (Obligatorio) *
                     </label>
                     <select
+                      id="user_sucursal_id"
                       required
                       value={formData.sucursal_id}
                       onChange={(e) => setFormData({ ...formData, sucursal_id: e.target.value })}
@@ -313,8 +313,9 @@ export const UsuariosAdminView = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">Nombres *</label>
+                  <label htmlFor="user_nombres" className="block font-bold text-stone-700 mb-1">Nombres *</label>
                   <input
+                    id="user_nombres"
                     type="text"
                     required
                     value={formData.nombres}
@@ -324,8 +325,9 @@ export const UsuariosAdminView = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1">Apellidos *</label>
+                  <label htmlFor="user_apellidos" className="block font-bold text-stone-700 mb-1">Apellidos *</label>
                   <input
+                    id="user_apellidos"
                     type="text"
                     required
                     value={formData.apellidos}
@@ -338,10 +340,11 @@ export const UsuariosAdminView = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                  <label htmlFor="user_email" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                     <Mail className="w-3.5 h-3.5 text-stone-400" /> Correo Institucional *
                   </label>
                   <input
+                    id="user_email"
                     type="email"
                     required
                     value={formData.email}
@@ -351,10 +354,11 @@ export const UsuariosAdminView = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                  <label htmlFor="user_telefono" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                     <Phone className="w-3.5 h-3.5 text-stone-400" /> Teléfono Móvil
                   </label>
                   <input
+                    id="user_telefono"
                     type="tel"
                     value={formData.telefono}
                     onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
@@ -365,10 +369,11 @@ export const UsuariosAdminView = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
+                <label htmlFor="user_password" className="block font-bold text-stone-700 mb-1 flex items-center gap-1">
                   <Lock className="w-3.5 h-3.5 text-stone-400" /> Contraseña de Acceso *
                 </label>
                 <input
+                  id="user_password"
                   type="password"
                   required
                   minLength={6}

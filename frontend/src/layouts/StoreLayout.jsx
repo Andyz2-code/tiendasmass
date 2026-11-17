@@ -92,7 +92,12 @@ export const StoreLayout = () => {
 
                 {isProfileMenuOpen && (
                   <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsProfileMenuOpen(false)}></div>
+                    <button
+                      type="button"
+                      aria-label="Cerrar menú"
+                      className="fixed inset-0 z-40 w-full h-full bg-transparent cursor-default border-none p-0"
+                      onClick={() => setIsProfileMenuOpen(false)}
+                    />
                     <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 overflow-hidden py-1">
                       <div className="p-3 bg-stone-50 border-b border-stone-100">
                         <div className="font-extrabold text-xs text-stone-900 truncate">
@@ -225,7 +230,7 @@ export const StoreLayout = () => {
                       <div className="font-bold text-xs text-stone-900 truncate">{item.producto.nombre}</div>
                       <div className="text-[11px] text-stone-500 font-mono">SKU: {item.producto.codigo_sku}</div>
                       <div className="text-xs font-bold text-red-600 mt-1">
-                        S/. {parseFloat(item.producto.precio_venta).toFixed(2)}
+                        S/. {Number.parseFloat(item.producto.precio_venta).toFixed(2)}
                       </div>
 
                       <div className="flex items-center justify-between mt-2">

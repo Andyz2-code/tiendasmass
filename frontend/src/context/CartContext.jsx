@@ -13,7 +13,7 @@ export const CartProvider = ({ children }) => {
   }, [cart]);
 
   const addToCart = (producto, cantidad = 1) => {
-    const stockDisponible = parseInt(producto.stock_actual || 0);
+    const stockDisponible = Number.parseInt(producto.stock_actual || 0, 10);
     if (stockDisponible <= 0) {
       alert(`El producto "${producto.nombre}" se encuentra agotado.`);
       return;
@@ -52,7 +52,7 @@ export const CartProvider = ({ children }) => {
     setCart((prev) =>
       prev.map((item) => {
         if (item.producto.id !== productoId) return item;
-        const stockDisponible = parseInt(item.producto.stock_actual || 9999);
+        const stockDisponible = Number.parseInt(item.producto.stock_actual || 9999, 10);
         if (cantidad > stockDisponible) {
           alert(`No se pueden solicitar más de ${stockDisponible} unidades de este producto.`);
           return { ...item, cantidad: stockDisponible };
@@ -72,7 +72,7 @@ export const CartProvider = ({ children }) => {
 
   // Cálculos comerciales en Soles (PEN) con IGV 18%
   const totalMercaderia = cart.reduce(
-    (acc, item) => acc + parseFloat(item.producto.precio_venta) * item.cantidad,
+    (acc, item) => acc + Number.parseFloat(item.producto.precio_venta) * item.cantidad,
     0
   );
 
@@ -88,9 +88,9 @@ export const CartProvider = ({ children }) => {
         updateQuantity,
         removeFromCart,
         clearCart,
-        totalMercaderia: parseFloat(totalMercaderia.toFixed(2)),
-        subtotalSinIgv: parseFloat(subtotalSinIgv.toFixed(2)),
-        igv: parseFloat(igv.toFixed(2)),
+        totalMercaderia: Number.parseFloat(totalMercaderia.toFixed(2)),
+        subtotalSinIgv: Number.parseFloat(subtotalSinIgv.toFixed(2)),
+        igv: Number.parseFloat(igv.toFixed(2)),
         itemsCount
       }}
     >

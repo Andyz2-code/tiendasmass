@@ -74,12 +74,12 @@ export const ProductosAdminView = () => {
   };
 
   useEffect(() => {
-    fetchProductos();
+    void fetchProductos();
   }, [selectedBranch, categoriaFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchProductos();
+    void fetchProductos();
   };
 
   const handleOpenEdit = (prod) => {
@@ -89,8 +89,8 @@ export const ProductosAdminView = () => {
 
   const handleProductSaved = () => {
     setFeedbackMsg('Producto actualizado y sincronizado en el catálogo.');
-    setTimeout(() => setFeedbackMsg(''), 4000);
-    fetchProductos();
+    setTimeout(() => setSuccessMsg(''), 4000);
+    void fetchProductos();
   };
 
   const handleCreateSubmit = async (e) => {
@@ -114,7 +114,7 @@ export const ProductosAdminView = () => {
         es_perecedero: 0,
         imagen_url: ''
       });
-      fetchProductos();
+      void fetchProductos();
     } catch (err) {
       alert('Error al registrar producto: ' + (err.response?.data?.message || err.message));
     } finally {
@@ -288,10 +288,10 @@ export const ProductosAdminView = () => {
                       </span>
                     </td>
                     <td className="p-3 text-right font-black text-stone-900">
-                      S/. {parseFloat(prod.precio_venta || 0).toFixed(2)}
+                      S/. {Number.parseFloat(prod.precio_venta || 0).toFixed(2)}
                     </td>
                     <td className="p-3 text-right text-stone-500 font-mono">
-                      S/. {parseFloat(prod.costo_base || 0).toFixed(2)}
+                      S/. {Number.parseFloat(prod.costo_base || 0).toFixed(2)}
                     </td>
                     <td className="p-3 text-right font-black">
                       <span className={`px-2 py-0.5 rounded-lg text-xs ${
@@ -338,7 +338,7 @@ export const ProductosAdminView = () => {
         onClose={() => setIsImportModalOpen(false)}
         sucursalId={selectedBranch?.id}
         categorias={categorias}
-        onImportCompleted={fetchProductos}
+        onImportCompleted={() => { void fetchProductos(); }}
       />
     </div>
   );

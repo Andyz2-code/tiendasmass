@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="TiendasMass Backend Test Suite" tests="7" failures="0" errors="0" time="0.4072">
+    <testcase name="testDatabaseConnection" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testAdminAuthenticationAndJwt" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testParetoAbcAnalysis" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testReorderPointAndObsolescence" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testDistanceAndDeliveryTariff" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testAtomicSalesPepsAllocation" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+    <testcase name="testStockDepletionRollback" classname="App.Tests.BackendIntegrationTest" time="0.0582"/>
+  </testsuite>
+</testsuites>

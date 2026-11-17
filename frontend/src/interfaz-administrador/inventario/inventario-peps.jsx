@@ -35,7 +35,7 @@ export const InventarioView = () => {
   };
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [selectedBranch, activeTab]);
 
   // Columnas para Stock Consolidado
@@ -46,8 +46,8 @@ export const InventarioView = () => {
     { header: 'Stock Actual', accessor: 'stock_actual', render: (r) => <span className="font-extrabold text-sm text-stone-900">{r.stock_actual} un.</span> },
     { header: 'P. Reorden (POR)', accessor: 'punto_reorden' },
     { header: 'Clasificación ABC', accessor: 'clasificacion_abc', render: (r) => <AbcBadge clase={r.clasificacion_abc} /> },
-    { header: 'Costo Base', accessor: 'costo_base', render: (r) => `S/. ${parseFloat(r.costo_base).toFixed(2)}` },
-    { header: 'Precio Venta', accessor: 'precio_venta', render: (r) => `S/. ${parseFloat(r.precio_venta).toFixed(2)}` }
+    { header: 'Costo Base', accessor: 'costo_base', render: (r) => `S/. ${Number.parseFloat(r.costo_base).toFixed(2)}` },
+    { header: 'Precio Venta', accessor: 'precio_venta', render: (r) => `S/. ${Number.parseFloat(r.precio_venta).toFixed(2)}` }
   ];
 
   // Columnas para Lotes y Caducidades
@@ -110,7 +110,7 @@ export const InventarioView = () => {
         </div>
 
         <button
-          onClick={fetchData}
+          onClick={() => { void fetchData(); }}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-stone-200 text-xs font-bold text-stone-700 hover:bg-stone-50 shadow-sm transition self-start sm:self-auto"
         >
           <RefreshCw className="w-3.5 h-3.5" />

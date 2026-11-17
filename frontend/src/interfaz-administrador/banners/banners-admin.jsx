@@ -56,7 +56,7 @@ export const BannerAdminView = () => {
   };
 
   useEffect(() => {
-    fetchBanners();
+    void fetchBanners();
   }, []);
 
   const openCreateModal = () => {
@@ -103,7 +103,7 @@ export const BannerAdminView = () => {
     try {
       await api.patch(`/banners/${id}/toggle`);
       setSuccessMsg('Estado del banner actualizado');
-      fetchBanners();
+      void fetchBanners();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       alert(err.message || 'Error al cambiar estado');
@@ -115,7 +115,7 @@ export const BannerAdminView = () => {
     try {
       await api.delete(`/banners/${id}`);
       setSuccessMsg('Banner eliminado con éxito');
-      fetchBanners();
+      void fetchBanners();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       alert(err.message || 'Error al eliminar');
@@ -144,7 +144,7 @@ export const BannerAdminView = () => {
         setSuccessMsg('Banner creado correctamente');
       }
       setIsModalOpen(false);
-      fetchBanners();
+      void fetchBanners();
       setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
       setErrorMsg(err.message || 'Error al guardar banner');
@@ -335,8 +335,9 @@ export const BannerAdminView = () => {
 
             <form onSubmit={handleSubmit} className="space-y-3 text-xs">
               <div>
-                <label className="font-bold text-stone-700 block mb-1">Título de la Promoción *</label>
+                <label htmlFor="banner_titulo" className="font-bold text-stone-700 block mb-1">Título de la Promoción *</label>
                 <input
+                  id="banner_titulo"
                   type="text"
                   required
                   value={formData.titulo}
@@ -347,8 +348,9 @@ export const BannerAdminView = () => {
               </div>
 
               <div>
-                <label className="font-bold text-stone-700 block mb-1">Subtítulo / Mensaje Promocional</label>
+                <label htmlFor="banner_subtitulo" className="font-bold text-stone-700 block mb-1">Subtítulo / Mensaje Promocional</label>
                 <textarea
+                  id="banner_subtitulo"
                   rows="2"
                   value={formData.subtitulo}
                   onChange={(e) => setFormData({ ...formData, subtitulo: e.target.value })}
@@ -359,8 +361,9 @@ export const BannerAdminView = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">Badge / Tag Promoción</label>
+                  <label htmlFor="banner_tag" className="font-bold text-stone-700 block mb-1">Badge / Tag Promoción</label>
                   <input
+                    id="banner_tag"
                     type="text"
                     value={formData.tag_promocion}
                     onChange={(e) => setFormData({ ...formData, tag_promocion: e.target.value })}
@@ -369,8 +372,9 @@ export const BannerAdminView = () => {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">Precio / Descuento Destacado</label>
+                  <label htmlFor="banner_precio" className="font-bold text-stone-700 block mb-1">Precio / Descuento Destacado</label>
                   <input
+                    id="banner_precio"
                     type="text"
                     value={formData.precio_destacado}
                     onChange={(e) => setFormData({ ...formData, precio_destacado: e.target.value })}
@@ -381,8 +385,9 @@ export const BannerAdminView = () => {
               </div>
 
               <div>
-                <label className="font-bold text-stone-700 block mb-1">URL de la Imagen *</label>
+                <label htmlFor="banner_img_url" className="font-bold text-stone-700 block mb-1">URL de la Imagen *</label>
                 <input
+                  id="banner_img_url"
                   type="url"
                   required
                   value={formData.imagen_url}
@@ -394,8 +399,9 @@ export const BannerAdminView = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">Texto del Botón</label>
+                  <label htmlFor="banner_btn_texto" className="font-bold text-stone-700 block mb-1">Texto del Botón</label>
                   <input
+                    id="banner_btn_texto"
                     type="text"
                     value={formData.boton_texto}
                     onChange={(e) => setFormData({ ...formData, boton_texto: e.target.value })}
@@ -404,12 +410,13 @@ export const BannerAdminView = () => {
                   />
                 </div>
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">Orden de Visualización</label>
+                  <label htmlFor="banner_orden" className="font-bold text-stone-700 block mb-1">Orden de Visualización</label>
                   <input
+                    id="banner_orden"
                     type="number"
                     min="1"
                     value={formData.orden}
-                    onChange={(e) => setFormData({ ...formData, orden: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => setFormData({ ...formData, orden: Number.parseInt(e.target.value, 10) || 1 })}
                     className="w-full p-2.5 rounded-xl border border-stone-300 font-semibold focus:outline-none focus:border-mass-red"
                   />
                 </div>
@@ -418,8 +425,9 @@ export const BannerAdminView = () => {
               {/* Selector de Ámbito / Sucursal */}
               {isAdmin ? (
                 <div>
-                  <label className="font-bold text-stone-700 block mb-1">Ámbito de Visualización</label>
+                  <label htmlFor="banner_sucursal" className="font-bold text-stone-700 block mb-1">Ámbito de Visualización</label>
                   <select
+                    id="banner_sucursal"
                     value={formData.sucursal_id}
                     onChange={(e) => setFormData({ ...formData, sucursal_id: e.target.value })}
                     className="w-full p-2.5 rounded-xl border border-stone-300 font-semibold focus:outline-none focus:border-mass-red bg-white"

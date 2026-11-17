@@ -88,10 +88,11 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
       {tab === 'login' && (
         <form onSubmit={handleClientLogin} className="space-y-4 text-xs">
           <div>
-            <label className="block font-semibold text-stone-700 mb-1">Correo Electrónico:</label>
+            <label htmlFor="cli_login_email" className="block font-semibold text-stone-700 mb-1">Correo Electrónico:</label>
             <div className="relative">
               <Mail className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
+                id="cli_login_email"
                 type="email"
                 required
                 value={loginEmail}
@@ -102,10 +103,11 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
             </div>
           </div>
           <div>
-            <label className="block font-semibold text-stone-700 mb-1">Contraseña:</label>
+            <label htmlFor="cli_login_pass" className="block font-semibold text-stone-700 mb-1">Contraseña:</label>
             <div className="relative">
               <Lock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
               <input
+                id="cli_login_pass"
                 type="password"
                 required
                 value={loginPass}
@@ -134,8 +136,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
         <form onSubmit={handleRegister} className="space-y-3 text-xs">
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Tipo Doc.:</label>
+              <label htmlFor="cli_reg_tipo_doc" className="block font-semibold text-stone-700 mb-1">Tipo Doc.:</label>
               <select
+                id="cli_reg_tipo_doc"
                 value={regData.tipo_documento}
                 onChange={(e) => setRegData({ ...regData, tipo_documento: e.target.value })}
                 className="w-full px-2 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none font-bold"
@@ -145,10 +148,11 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
               </select>
             </div>
             <div className="col-span-2">
-              <label className="block font-semibold text-stone-700 mb-1">
+              <label htmlFor="cli_reg_num_doc" className="block font-semibold text-stone-700 mb-1">
                 {regData.tipo_documento === 'DNI' ? 'N° DNI (8 dígitos):' : 'N° Pasaporte (6-12 car.):'}
               </label>
               <input
+                id="cli_reg_num_doc"
                 type="text"
                 required
                 maxLength={regData.tipo_documento === 'DNI' ? 8 : 12}
@@ -162,8 +166,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Nombres:</label>
+              <label htmlFor="cli_reg_nombres" className="block font-semibold text-stone-700 mb-1">Nombres:</label>
               <input
+                id="cli_reg_nombres"
                 type="text"
                 required
                 value={regData.nombres}
@@ -173,8 +178,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Apellidos:</label>
+              <label htmlFor="cli_reg_apellidos" className="block font-semibold text-stone-700 mb-1">Apellidos:</label>
               <input
+                id="cli_reg_apellidos"
                 type="text"
                 required
                 value={regData.apellidos}
@@ -186,8 +192,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
           </div>
 
           <div>
-            <label className="block font-semibold text-stone-700 mb-1">Correo Electrónico:</label>
+            <label htmlFor="cli_reg_email" className="block font-semibold text-stone-700 mb-1">Correo Electrónico:</label>
             <input
+              id="cli_reg_email"
               type="email"
               required
               value={regData.email}
@@ -199,8 +206,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Teléfono:</label>
+              <label htmlFor="cli_reg_telefono" className="block font-semibold text-stone-700 mb-1">Teléfono:</label>
               <input
+                id="cli_reg_telefono"
                 type="tel"
                 required
                 value={regData.telefono}
@@ -210,8 +218,9 @@ export const LoginModal = ({ isOpen, onClose, defaultTab = 'login' }) => {
               />
             </div>
             <div>
-              <label className="block font-semibold text-stone-700 mb-1">Contraseña:</label>
+              <label htmlFor="cli_reg_password" className="block font-semibold text-stone-700 mb-1">Contraseña:</label>
               <input
+                id="cli_reg_password"
                 type="password"
                 required
                 value={regData.password}

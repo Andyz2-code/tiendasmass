@@ -84,8 +84,6 @@ export const ExcelImportModal = ({ isOpen, onClose, sucursalId, onImportComplete
     let invalidCount = 0;
 
     for (let i = 1; i < lines.length; i++) {
-      // Manejar valores con comas dentro de comillas
-      const match = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
       const rawCols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g, ''));
       
       const rowObj = {};
@@ -98,8 +96,8 @@ export const ExcelImportModal = ({ isOpen, onClose, sucursalId, onImportComplete
       const sku = (rowObj.codigo_sku || '').toUpperCase().trim();
       const barcode = (rowObj.codigo_barras || '').trim();
       const nombre = (rowObj.nombre || '').trim();
-      const precio = parseFloat(rowObj.precio_venta || 0);
-      const costo = parseFloat(rowObj.costo_base || 0);
+      const precio = Number.parseFloat(rowObj.precio_venta || 0);
+      const costo = Number.parseFloat(rowObj.costo_base || 0);
 
       if (!sku) errors.push('Falta SKU');
       else if (seenSkus.has(sku)) errors.push('SKU duplicado en archivo');
@@ -107,8 +105,8 @@ export const ExcelImportModal = ({ isOpen, onClose, sucursalId, onImportComplete
 
       if (!barcode) errors.push('Falta Código de Barras');
       if (!nombre) errors.push('Falta Nombre');
-      if (isNaN(precio) || precio <= 0) errors.push('Precio venta inválido (>0)');
-      if (isNaN(costo) || costo <= 0) errors.push('Costo base inválido (>0)');
+      if (Number.isNaN(precio) || precio <= 0) errors.push('Precio venta inválido (>0)');
+      if (Number.isNaN(costo) || costo <= 0) errors.push('Costo base inválido (>0)');
 
       const isValid = errors.length === 0;
       if (isValid) validCount++;
@@ -260,8 +258,8 @@ export const ExcelImportModal = ({ isOpen, onClose, sucursalId, onImportComplete
                       <td className="p-2 font-mono font-bold">{row.data.codigo_sku}</td>
                       <td className="p-2 font-semibold text-stone-900 truncate max-w-xs">{row.data.nombre}</td>
                       <td className="p-2 text-stone-600">{row.data.categoria}</td>
-                      <td className="p-2 text-right font-bold">S/. {parseFloat(row.data.precio_venta || 0).toFixed(2)}</td>
-                      <td className="p-2 text-right text-stone-500">S/. {parseFloat(row.data.costo_base || 0).toFixed(2)}</td>
+                      <td className="p-2 text-right font-bold">S/. {Number.parseFloat(row.data.precio_venta || 0).toFixed(2)}</td>
+                      <td className="p-2 text-right text-stone-500">S/. {Number.parseFloat(row.data.costo_base || 0).toFixed(2)}</td>
                       <td className="p-2 text-right font-black text-amber-700">{row.data.stock_inicial || 0}</td>
                     </tr>
                   ))}

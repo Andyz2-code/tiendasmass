@@ -29,7 +29,7 @@ export const DeliveryTrackingView = () => {
       const withDelivery = (res.data || []).filter((p) => p.tipo_entrega === 'DELIVERY');
       setPedidosDelivery(withDelivery);
       if (withDelivery.length > 0 && !selectedPedido) {
-        loadPedidoDetail(withDelivery[0].id);
+        await loadPedidoDetail(withDelivery[0].id);
       }
     } catch (err) {
       console.error('Error al cargar deliveries:', err);
@@ -43,13 +43,13 @@ export const DeliveryTrackingView = () => {
       setSelectedPedido(p);
       if (p.latitud_actual_repartidor && p.longitud_actual_repartidor) {
         setDriverLoc({
-          lat: parseFloat(p.latitud_actual_repartidor),
-          lng: parseFloat(p.longitud_actual_repartidor)
+          lat: Number.parseFloat(p.latitud_actual_repartidor),
+          lng: Number.parseFloat(p.longitud_actual_repartidor)
         });
       } else {
         setDriverLoc({
-          lat: parseFloat(p.sucursal_lat || -12.0684),
-          lng: parseFloat(p.sucursal_lng || -75.2100)
+          lat: Number.parseFloat(p.sucursal_lat || -12.0684),
+          lng: Number.parseFloat(p.sucursal_lng || -75.2100)
         });
       }
     } catch (err) {
@@ -58,7 +58,7 @@ export const DeliveryTrackingView = () => {
   };
 
   useEffect(() => {
-    fetchDeliveries();
+    void fetchDeliveries();
   }, [selectedBranch]);
 
   // Conexión a WebSocket Socket.io
@@ -95,10 +95,10 @@ export const DeliveryTrackingView = () => {
   useEffect(() => {
     let interval = null;
     if (isSimulating && selectedPedido) {
-      const originLat = parseFloat(selectedPedido.sucursal_lat || -12.0684);
-      const originLng = parseFloat(selectedPedido.sucursal_lng || -75.2100);
-      const destLat = parseFloat(selectedPedido.latitud_destino || -12.0691);
-      const destLng = parseFloat(selectedPedido.longitud_destino || -75.2092);
+      const originLat = Number.parseFloat(selectedPedido.sucursal_lat || -12.0684);
+      const originLng = Number.parseFloat(selectedPedido.sucursal_lng || -75.2100);
+      const destLat = Number.parseFloat(selectedPedido.latitud_destino || -12.0691);
+      const destLng = Number.parseFloat(selectedPedido.longitud_destino || -75.2092);
 
       let step = 0;
       const totalSteps = 20;
@@ -127,13 +127,14 @@ export const DeliveryTrackingView = () => {
           pedido_id: selectedPedido.id,
           latitud: currentLat,
           longitud: currentLng
-        }).catch(() => {});
+        }).catch(() => { });
 
         if (step >= totalSteps) {
           setIsSimulating(false);
           clearInterval(interval);
           api.put(`/pedidos/${selectedPedido.id}/estado`, { estado_pedido: 'ENTREGADO' })
-            .then(() => fetchDeliveries());
+            .then(() => { void fetchDeliveries(); })
+            .catch(() => { });
         }
       }, 1500);
     }
@@ -157,9 +158,8 @@ export const DeliveryTrackingView = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
-            socketConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
-          }`}>
+          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${socketConnected ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+            }`}>
             <Radio className="w-3.5 h-3.5 animate-pulse" />
             <span>{socketConnected ? 'WebSocket Activo' : 'Conectando Socket...'}</span>
           </span>
@@ -176,24 +176,23 @@ export const DeliveryTrackingView = () => {
 
           <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
             {pedidosDelivery.map((p) => (
-              <div
+              <button
+                type="button"
                 key={p.id}
                 onClick={() => loadPedidoDetail(p.id)}
-                className={`p-3 rounded-xl border text-xs cursor-pointer transition space-y-1.5 ${
-                  selectedPedido?.id === p.id
-                    ? 'border-mass-red bg-red-50/50 shadow-sm'
-                    : 'border-stone-200 bg-stone-50 hover:bg-stone-100'
-                }`}
+                className={`w-full text-left p-3 rounded-xl border text-xs cursor-pointer transition space-y-1.5 focus:outline-none focus:ring-2 focus:ring-mass-red ${selectedPedido?.id === p.id
+                  ? 'border-mass-red bg-red-50/50 shadow-sm'
+                  : 'border-stone-200 bg-stone-50 hover:bg-stone-100'
+                  }`}
               >
                 <div className="flex justify-between items-center">
                   <span className="font-mono font-bold text-stone-900">{p.codigo_pedido}</span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                    p.estado_pedido === 'ENTREGADO'
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : p.estado_pedido === 'DESPACHADO'
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${p.estado_pedido === 'ENTREGADO'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : p.estado_pedido === 'DESPACHADO'
                       ? 'bg-blue-100 text-blue-800'
                       : 'bg-amber-100 text-amber-800'
-                  }`}>
+                    }`}>
                     {p.estado_delivery || p.estado_pedido}
                   </span>
                 </div>
@@ -206,9 +205,9 @@ export const DeliveryTrackingView = () => {
                 </div>
                 <div className="flex justify-between text-[11px] text-stone-600 pt-1 border-t border-stone-200">
                   <span>Distancia: <strong>{p.distancia_km || 1.2} km</strong></span>
-                  <span className="font-bold text-mass-red">S/. {parseFloat(p.total).toFixed(2)}</span>
+                  <span className="font-bold text-mass-red">S/. {Number.parseFloat(p.total).toFixed(2)}</span>
                 </div>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -229,11 +228,10 @@ export const DeliveryTrackingView = () => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsSimulating(!isSimulating)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition ${
-                      isSimulating
-                        ? 'bg-red-600 text-white animate-pulse'
-                        : 'bg-stone-900 hover:bg-black text-amber-400'
-                    }`}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition ${isSimulating
+                      ? 'bg-red-600 text-white animate-pulse'
+                      : 'bg-stone-900 hover:bg-black text-amber-400'
+                      }`}
                   >
                     <Play className="w-3.5 h-3.5" />
                     <span>{isSimulating ? 'Detener Simulación' : 'Simular Avance GPS'}</span>
@@ -289,11 +287,10 @@ export const DeliveryTrackingView = () => {
                   return (
                     <div
                       key={idx}
-                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 ${
-                        step.active
-                          ? 'border-emerald-300 bg-emerald-50 text-emerald-800 font-bold'
-                          : 'border-stone-200 bg-stone-50 text-stone-400'
-                      }`}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 ${step.active
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-800 font-bold'
+                        : 'border-stone-200 bg-stone-50 text-stone-400'
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                       <span className="text-[11px]">{step.label}</span>
