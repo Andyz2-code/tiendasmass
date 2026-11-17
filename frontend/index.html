@@ -94,14 +94,39 @@
       const [thankYouInfo, setThankYouInfo] = useState(null);
       const [clientOrdersCount, setClientOrdersCount] = useState(0);
 
-      // Estados de Búsqueda y Categorías Mass Online
+      // Estados de Búsqueda con Debounce de 500ms
       const [categorias, setCategorias] = useState([]);
-      const [searchTerm, setSearchTerm] = useState('');
+      const [searchTerm, setSearchTerm] = useState(() => new URLSearchParams(window.location.search).get('search') || new URLSearchParams(window.location.search).get('q') || '');
+      const [debouncedSearch, setDebouncedSearch] = useState('');
+      const [isSearching, setIsSearching] = useState(false);
+      const [a11ySearchStatus, setA11ySearchStatus] = useState('');
       const [selectedCategory, setSelectedCategory] = useState(null);
       const [isOffersOnly, setIsOffersOnly] = useState(false);
       const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
       const [favorites, setFavorites] = useState(() => JSON.parse(localStorage.getItem('mass_client_favorites') || '[]'));
       const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
+
+      // Efecto Debounce de 500ms obligatorio para evitar múltiples llamadas al escribir
+      useEffect(() => {
+        const trimmed = searchTerm.trim();
+        if (trimmed === '') {
+          setDebouncedSearch('');
+          setIsSearching(false);
+          setA11ySearchStatus('Búsqueda restablecida. Mostrando catálogo completo.');
+          return;
+        }
+
+        setIsSearching(true);
+        setA11ySearchStatus(`Escribiendo "${trimmed}"...`);
+
+        const timer = setTimeout(() => {
+          setDebouncedSearch(trimmed);
+          setIsSearching(false);
+          setA11ySearchStatus(`Búsqueda lista para "${trimmed}".`);
+        }, 500);
+
+        return () => clearTimeout(timer);
+      }, [searchTerm]);
 
       useEffect(() => {
         api.get('/sucursales').then((res) => {
@@ -207,38 +232,70 @@
                 />
               </div>
 
-              {/* 2. Barra de Búsqueda Amplia y Espaciosa (Solucionada al 100%) */}
-              <div className="flex-1 max-w-2xl mx-2 sm:mx-4">
+              {/* 2. Barra de Búsqueda Amplia y Accesible con Debounce de 500ms */}
+              <div className="flex-1 max-w-2xl mx-2 sm:mx-4" role="search" aria-label="Búsqueda de productos">
                 <div className="flex items-center bg-white rounded-full border-2 border-stone-200 focus-within:border-mass-red overflow-hidden shadow-sm transition">
-                  <span className="pl-4 pr-2 text-stone-400 text-sm">🔍</span>
+                  <span className="pl-4 pr-2 text-stone-400 text-sm flex items-center justify-center min-w-[2rem]">
+                    {isSearching ? (
+                      <span className="inline-block w-4 h-4 border-2 border-mass-red border-t-transparent rounded-full animate-spin" aria-hidden="true"></span>
+                    ) : (
+                      <span>🔍</span>
+                    )}
+                  </span>
                   <input
-                    type="text"
+                    type="search"
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       if (view !== 'catalogo') setView('catalogo');
                     }}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') setView('catalogo');
+                      if (e.key === 'Enter') {
+                        setDebouncedSearch(searchTerm.trim());
+                        setView('catalogo');
+                        const el = document.getElementById("catalogo-grid");
+                        if (el) el.scrollIntoView({ behavior: "smooth" });
+                      } else if (e.key === 'Escape') {
+                        setSearchTerm('');
+                        setDebouncedSearch('');
+                      }
                     }}
-                    placeholder="Busca productos, marca..."
+                    placeholder="Busca productos, marca (ej. arroz, leche)..."
+                    aria-label="Buscar productos por nombre, marca o categoría"
+                    aria-busy={isSearching}
+                    autoComplete="off"
                     className="w-full py-2.5 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none bg-transparent font-medium"
                   />
                   {searchTerm && (
                     <button
-                      onClick={() => setSearchTerm('')}
-                      className="px-2 text-stone-400 hover:text-stone-700 font-bold text-xs"
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setDebouncedSearch('');
+                      }}
+                      className="px-2.5 py-1 text-stone-400 hover:text-stone-700 font-bold text-xs cursor-pointer"
                       title="Limpiar búsqueda"
+                      aria-label="Limpiar búsqueda"
                     >
                       ✕
                     </button>
                   )}
                   <button
-                    onClick={() => setView('catalogo')}
-                    className="bg-[#ff671f] hover:bg-[#ea580c] text-white font-black text-xs sm:text-sm px-6 py-2.5 transition shrink-0 uppercase tracking-wide"
+                    type="button"
+                    onClick={() => {
+                      setDebouncedSearch(searchTerm.trim());
+                      setView('catalogo');
+                      const el = document.getElementById("catalogo-grid");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    className="bg-[#ff671f] hover:bg-[#ea580c] text-white font-black text-xs sm:text-sm px-6 py-2.5 transition shrink-0 uppercase tracking-wide cursor-pointer"
                   >
                     Buscar
                   </button>
+                </div>
+                {/* Región ARIA Live accesible para lectores de pantalla */}
+                <div className="sr-only" role="status" aria-live="polite">
+                  {a11ySearchStatus}
                 </div>
               </div>
 
@@ -533,7 +590,8 @@
             {view === 'catalogo' && (
               <CatalogoCliente
                 branch={selectedBranch}
-                searchTerm={searchTerm}
+                searchTerm={debouncedSearch}
+                isSearching={isSearching}
                 selectedCategory={selectedCategory}
                 setSelectedCategory={setSelectedCategory}
                 isOffersOnly={isOffersOnly}
@@ -543,6 +601,7 @@
                 onToggleFavorite={toggleFavorite}
                 onClearFilters={() => {
                   setSearchTerm('');
+                  setDebouncedSearch('');
                   setSelectedCategory(null);
                   setIsOffersOnly(false);
                   setIsFavoritesOnly(false);
@@ -1117,6 +1176,7 @@
     function CatalogoCliente({
       branch,
       searchTerm,
+      isSearching = false,
       selectedCategory,
       setSelectedCategory,
       isOffersOnly,
@@ -1131,6 +1191,8 @@
       const [productos, setProductos] = useState([]);
       const [categorias, setCategorias] = useState([]);
       const [loading, setLoading] = useState(true);
+      const [networkLoading, setNetworkLoading] = useState(false);
+      const searchAbortRef = useRef(null);
 
       // Filtros internos
       const [catalogSearch, setCatalogSearch] = useState('');
@@ -1161,19 +1223,46 @@
         return () => window.removeEventListener('keydown', handleKeyDown);
       }, [selectedProductModal]);
 
-      const loadCatalog = () => {
+      // Carga de catálogo con control de concurrencia y AbortController
+      // Cancela solicitudes previas en vuelo para evitar condiciones de carrera
+      useEffect(() => {
         if (!branch?.id) return;
-        setLoading(true);
-        Promise.all([
-          api.get(`/productos?sucursal_id=${branch.id}`),
-          api.get('/categorias')
-        ]).then(([prodRes, catRes]) => {
-          setProductos(prodRes.data || []);
-          setCategorias(catRes.data || []);
-        }).finally(() => setLoading(false));
-      };
 
-      useEffect(() => { loadCatalog(); }, [branch]);
+        if (searchAbortRef.current) {
+          searchAbortRef.current.abort();
+        }
+
+        const controller = new AbortController();
+        searchAbortRef.current = controller;
+        setNetworkLoading(true);
+
+        const params = new URLSearchParams();
+        params.append('sucursal_id', branch.id);
+        if (selectedCategory) params.append('categoria_id', selectedCategory);
+        if (searchTerm && searchTerm.trim() !== '') {
+          params.append('search', searchTerm.trim());
+        }
+
+        Promise.all([
+          api.get(`/productos?${params.toString()}`, { signal: controller.signal }),
+          categorias.length === 0 ? api.get('/categorias') : Promise.resolve({ data: categorias })
+        ]).then(([prodRes, catRes]) => {
+          setProductos(prodRes.data?.data || prodRes.data || []);
+          if (catRes.data && categorias.length === 0) setCategorias(catRes.data || []);
+        }).catch(err => {
+          if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
+          console.error('Error al cargar catálogo:', err);
+        }).finally(() => {
+          if (searchAbortRef.current === controller) {
+            setNetworkLoading(false);
+            setLoading(false);
+          }
+        });
+
+        return () => {
+          controller.abort();
+        };
+      }, [branch?.id, selectedCategory, searchTerm]);
 
       // Apertura automática si viene el parámetro ?producto=id en la URL
       useEffect(() => {
@@ -1592,13 +1681,19 @@ return (
               ) : (
                 <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
                   <span className="text-4xl">🔍</span>
-                  <h3 className="text-sm font-bold text-stone-900">No encontramos productos con esos filtros</h3>
-                  <p className="text-xs text-stone-500">Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.</p>
+                  <h3 className="text-sm font-bold text-stone-900">
+                    {debouncedSearch ? `No encontramos productos para "${debouncedSearch}"` : 'No encontramos productos con esos filtros'}
+                  </h3>
+                  <p className="text-xs text-stone-500 max-w-md mx-auto">
+                    {debouncedSearch 
+                      ? 'Revisa la ortografía o intenta buscar por una categoría o término más general (ej. arroz, leche, café, galletas).' 
+                      : 'Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.'}
+                  </p>
                   <button
                     onClick={handleResetAllFilters}
                     className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
                   >
-                    Ver Todos los Productos (17)
+                    {debouncedSearch ? 'Limpiar búsqueda y ver catálogo completo' : `Ver Todos los Productos (${allProducts.length})`}
                   </button>
                 </div>
               )}

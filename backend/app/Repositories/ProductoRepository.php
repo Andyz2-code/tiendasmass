@@ -11,14 +11,39 @@ class ProductoRepository {
         $this->db = Database::getConnection();
     }
 
-    public function getAll(bool $onlyActive = true): array {
+    public function getAll(bool $onlyActive = true, ?int $categoriaId = null, ?string $search = null): array {
         $sql = "SELECT p.*, c.nombre AS categoria_nombre 
                 FROM productos p 
                 JOIN categorias c ON p.categoria_id = c.id";
+        $where = [];
+        $params = [];
+
         if ($onlyActive) {
-            $sql .= " WHERE p.estado = 1";
+            $where[] = "p.estado = 1";
+        }
+        if ($categoriaId) {
+            $where[] = "p.categoria_id = :cat_id";
+            $params[':cat_id'] = $categoriaId;
+        }
+        if ($search !== null && trim($search) !== '') {
+            $term = "%" . trim($search) . "%";
+            $where[] = "(p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar)";
+            $params[':s_nom'] = $term;
+            $params[':s_desc'] = $term;
+            $params[':s_sku'] = $term;
+            $params[':s_bar'] = $term;
+        }
+
+        if (!empty($where)) {
+            $sql .= " WHERE " . implode(" AND ", $where);
         }
         $sql .= " ORDER BY p.id ASC";
+
+        if (!empty($params)) {
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->fetchAll();
+        }
         return $this->db->query($sql)->fetchAll();
     }
 
@@ -39,9 +64,13 @@ class ProductoRepository {
             $params[':cat_id'] = $categoriaId;
         }
 
-        if ($search) {
-            $sql .= " AND (p.nombre LIKE :search OR p.codigo_sku LIKE :search OR p.codigo_barras LIKE :search)";
-            $params[':search'] = "%{$search}%";
+        if ($search !== null && trim($search) !== '') {
+            $term = "%" . trim($search) . "%";
+            $sql .= " AND (p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar)";
+            $params[':s_nom'] = $term;
+            $params[':s_desc'] = $term;
+            $params[':s_sku'] = $term;
+            $params[':s_bar'] = $term;
         }
 
         $sql .= " ORDER BY p.nombre ASC";

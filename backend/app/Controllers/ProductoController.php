@@ -20,7 +20,7 @@ class ProductoController {
         if ($sucursalId) {
             $productos = $this->repo->getBySucursal($sucursalId, $categoriaId, $search);
         } else {
-            $productos = $this->repo->getAll(true);
+            $productos = $this->repo->getAll(true, $categoriaId, $search);
         }
 
         Response::success($productos);

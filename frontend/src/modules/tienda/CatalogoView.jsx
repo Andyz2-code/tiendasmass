@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useBranch } from '../../context/BranchContext';
 import { useCart } from '../../context/CartContext';
 import api from '../../services/api';
-import { ShoppingBag, Heart, ArrowRight, AlertCircle, ShoppingCart, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, Heart, ArrowRight, AlertCircle, ShoppingCart, AlertTriangle, Search, Loader2, X } from 'lucide-react';
 import { ProductDetailModal } from '../../components/ProductDetailModal';
 import { BannerCarousel } from '../../components/BannerCarousel';
+import useDebounce from '../../shared/utils/useDebounce';
+import { ProductSearchBar } from '../../components-compartidos/componentes-comunes/ProductSearchBar';
 
 const POPULAR_BRANDS = [
   'PRIMOR', 'COSTEÑO', 'GLORIA', 'MASS', 'CAMPO MASS',
@@ -41,26 +43,55 @@ export const CatalogoView = () => {
   const [localQtys, setLocalQtys] = useState({});
   const [selectedProductModal, setSelectedProductModal] = useState(null);
 
-  const fetchData = async () => {
+  // Optimización de Búsqueda: Debounce 500ms + AbortController
+  const debouncedSearch = useDebounce(catalogSearch, 500);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchAbortRef = useRef(null);
+
+  // Monitoreo del estado de escritura
+  useEffect(() => {
+    if (catalogSearch.trim() !== debouncedSearch) {
+      setIsSearching(true);
+    } else {
+      setIsSearching(false);
+    }
+  }, [catalogSearch, debouncedSearch]);
+
+  const fetchData = async (term = debouncedSearch, cat = selectedCat) => {
     if (!selectedBranch?.id) return;
+
+    // Cancelar petición anterior si aún está en vuelo
+    if (searchAbortRef.current) {
+      searchAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
+
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      params.append('sucursal_id', selectedBranch.id);
+      if (cat) params.append('categoria_id', cat);
+      if (term && term.trim()) params.append('search', term.trim());
+
       const [prodRes, catRes] = await Promise.all([
-        api.get(`/productos?sucursal_id=${selectedBranch.id}`),
-        api.get('/categorias')
+        api.get(`/productos?${params.toString()}`, { signal: controller.signal }),
+        api.get('/categorias', { signal: controller.signal })
       ]);
       setProductos(prodRes.data || []);
       setCategorias(catRes.data || []);
     } catch (err) {
+      if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
       console.error('Error al cargar catálogo:', err);
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [selectedBranch]);
+    fetchData(debouncedSearch, selectedCat);
+  }, [selectedBranch, debouncedSearch, selectedCat]);
 
   // Soporte para abrir modal directo si hay ?producto= en URL
   useEffect(() => {
@@ -495,13 +526,19 @@ export const CatalogoView = () => {
         ) : (
           <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
             <AlertCircle className="w-10 h-10 text-stone-400 mx-auto stroke-1" />
-            <h3 className="text-sm font-bold text-stone-900">No encontramos productos en esta sección</h3>
-            <p className="text-xs text-stone-500">Prueba limpiando los filtros seleccionados para ver el catálogo general.</p>
+            <h3 className="text-sm font-bold text-stone-900">
+              {debouncedSearch ? `No encontramos productos para "${debouncedSearch}"` : 'No encontramos productos en esta sección'}
+            </h3>
+            <p className="text-xs text-stone-500 max-w-md mx-auto">
+              {debouncedSearch
+                ? 'Revisa la ortografía o intenta buscar por una categoría o término más general (ej. arroz, leche, café, galletas).'
+                : 'Prueba limpiando los filtros seleccionados para ver el catálogo general.'}
+            </p>
             <button
               onClick={handleResetAllFilters}
               className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
             >
-              Ver Todos los Productos
+              {debouncedSearch ? 'Limpiar búsqueda y ver catálogo completo' : 'Ver Todos los Productos'}
             </button>
           </div>
         )}
