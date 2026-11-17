@@ -16,6 +16,12 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->getMapping('/auth/me', 'AuthController@me', ['jwt']);
     $api->putMapping('/clientes/perfil', 'AuthController@updateProfile');
 
+    // 1.1 Mapeo de Gestión de Usuarios (Rol Administrador y Supervisor con Sucursal Obligatoria - Req #5)
+    $api->getMapping('/usuarios', 'UsuarioController@index', ['jwt', 'role:Administrador']);
+    $api->postMapping('/usuarios', 'UsuarioController@store', ['jwt', 'role:Administrador']);
+    $api->putMapping('/usuarios/{id}', 'UsuarioController@update', ['jwt', 'role:Administrador']);
+    $api->patchMapping('/usuarios/{id}/toggle', 'UsuarioController@toggle', ['jwt', 'role:Administrador']);
+
     // 2. Mapeo de Sucursales y Almacenes
     $api->getMapping('/sucursales', 'SucursalController@index');
     $api->getMapping('/sucursales/{id}', 'SucursalController@show');
@@ -33,17 +39,22 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->postMapping('/upload/image', 'UploadController@uploadImage', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/upload/banner', 'UploadController@uploadBanner', ['jwt', 'role:Administrador,Supervisor']);
 
-    // 4. Mapeo de Inventarios, Lotes y Algoritmos (PEPS FIFO, Matriz ABC, POR, IOI)
+    // 4. Mapeo de Inventarios, Lotes, Mermas y Alertas de Stock Bajo (<= 5 unidades - Req #3 y #4)
     $api->getMapping('/inventarios', 'InventarioController@index', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/lotes', 'InventarioController@lotes', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/lotes/recepcion', 'InventarioController@recepcionCompra', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/inventarios/mermas', 'InventarioController@registrarMerma', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/inventarios/low-stock-alerts', 'InventarioController@lowStockAlerts', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/inventarios/abc', 'InventarioController@abcAnalysis', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/inventarios/abc-recalculate', 'InventarioController@abcRecalculate', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/inventarios/reorder-alerts', 'InventarioController@reorderAlerts', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/inventarios/obsolescence', 'InventarioController@obsolescence', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/inventarios/kardex', 'InventarioController@kardex', ['jwt', 'role:Administrador,Supervisor']);
 
-    // 5. Mapeo de Pedidos, Ventas y Facturación
+    // 5. Mapeo de Pedidos, Recojo en Tienda, Flujo Post-Pago y Seguimiento (Req #1 y #2)
+    $api->postMapping('/pedidos/validar-stock-recojo', 'PedidoController@validarStockRecojo');
+    $api->getMapping('/pedidos/seguimiento/{codigo}', 'PedidoController@seguimientoPublico');
+    $api->postMapping('/pedidos/{id}/notificar-boleta', 'PedidoController@notificarBoleta');
     $api->getMapping('/pedidos', 'PedidoController@index');
     $api->getMapping('/ventas', 'PedidoController@index'); // Alias para compatibilidad
     $api->getMapping('/pedidos/{id}', 'PedidoController@show');
@@ -71,6 +82,7 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->getMapping('/reportes/dashboard-kpi', 'ReporteController@dashboardKpi', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/reportes/general-admin', 'ReporteController@generalAdmin', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/reportes/mermas', 'ReporteController@mermas', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/reportes/mermas', 'InventarioController@registrarMerma', ['jwt', 'role:Administrador,Supervisor']);
 
     // 9. Mapeo de Banners Publicitarios y Promociones
     $api->getMapping('/banners', 'BannerController@index');

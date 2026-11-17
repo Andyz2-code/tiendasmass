@@ -3,6 +3,7 @@ namespace App\Controllers;
 
 use App\Helpers\Database;
 use App\Helpers\Response;
+use App\Middleware\JwtAuthMiddleware;
 use App\Middleware\RoleMiddleware;
 use PDO;
 
@@ -17,7 +18,7 @@ class ReporteController {
      * GET /api/reportes/dashboard-kpi?sucursal_id=1
      */
     public function dashboardKpi(): void {
-        $user = $GLOBALS['auth_user'] ?? null;
+        $user = $GLOBALS['auth_user'] ?? JwtAuthMiddleware::getUser();
         $sucursalId = isset($_GET['sucursal_id']) ? (int)$_GET['sucursal_id'] : null;
 
         if ($user && ($user['rol_nombre'] ?? '') === 'Supervisor') {
@@ -53,6 +54,17 @@ class ReporteController {
              WHERE i.stock_actual <= i.punto_reorden " . ($sucursalId ? "AND i.sucursal_id = {$sucursalId}" : "")
         )->fetchColumn();
 
+        // 4.1 REQUERIMIENTO 3: Alertas de Stock Bajo (Exactamente o menor a 5 unidades)
+        $alertasStockBajo5 = $this->db->query(
+            "SELECT i.id, i.sucursal_id, s.nombre AS sucursal_nombre, i.producto_id,
+                    p.nombre AS producto_nombre, p.codigo_sku, i.stock_actual, i.punto_reorden
+             FROM inventarios i
+             JOIN productos p ON i.producto_id = p.id
+             JOIN sucursales s ON i.sucursal_id = s.id
+             WHERE i.stock_actual <= 5 AND p.estado = 1 " . ($sucursalId ? "AND i.sucursal_id = {$sucursalId}" : "") . "
+             ORDER BY i.stock_actual ASC"
+        )->fetchAll(PDO::FETCH_ASSOC);
+
         // 5. Ventas por Categoría
         $ventasPorCat = $this->db->query(
             "SELECT c.nombre AS categoria, COALESCE(SUM(dp.subtotal), 0) AS total_soles, COUNT(dp.id) AS cantidad_vendida
@@ -78,22 +90,24 @@ class ReporteController {
         )->fetchAll(PDO::FETCH_ASSOC);
 
         Response::success([
-            'ventas_mes'             => round($ventasMes, 2),
-            'total_pedidos'          => $totalPedidos,
-            'valor_inventario_soles' => round($valorInventario, 2),
-            'alertas_reorden_count'  => $criticosPor,
-            'ventas_categoria'       => $ventasPorCat,
-            'top_productos'          => $topProductos
+            'ventas_mes'               => round($ventasMes, 2),
+            'total_pedidos'            => $totalPedidos,
+            'valor_inventario_soles'   => round($valorInventario, 2),
+            'alertas_reorden_count'    => $criticosPor,
+            'alertas_stock_bajo_count' => count($alertasStockBajo5),
+            'alertas_stock_bajo_items' => $alertasStockBajo5,
+            'ventas_categoria'         => $ventasPorCat,
+            'top_productos'            => $topProductos
         ]);
     }
 
     /**
      * GET /api/reportes/general-admin
      * Reporte integral ejecutivo con Ventas Día, Ventas Mes, Margen de Utilidad Real,
-     * Productos de Alta Rotación y Métodos de Pago independientes (Prompt 3).
+     * Productos de Alta Rotación, Métodos de Pago independientes, Evolución y Kardex.
      */
     public function generalAdmin(): void {
-        $user = $GLOBALS['auth_user'] ?? \App\Middleware\JwtAuthMiddleware::getUser();
+        $user = $GLOBALS['auth_user'] ?? JwtAuthMiddleware::getUser();
         $isSupervisor = ($user && ($user['rol_nombre'] ?? '') === 'Supervisor');
 
         if ($isSupervisor) {
@@ -325,16 +339,44 @@ class ReporteController {
             SELECT 
                 p.id, p.codigo_sku, p.nombre, p.precio_venta, c.nombre AS categoria,
                 s.nombre AS sucursal_nombre, i.stock_actual, i.punto_reorden,
-                (i.punto_reorden - i.stock_actual) AS faltante_sugerido
+                (i.punto_reorden - i.stock_actual) AS faltante_sugerido,
+                IF(i.stock_actual <= 5, 1, 0) AS alerta_critica_5
             FROM inventarios i
             JOIN productos p ON i.producto_id = p.id
             JOIN categorias c ON p.categoria_id = c.id
             JOIN sucursales s ON i.sucursal_id = s.id
-            WHERE i.stock_actual > 0 AND i.stock_actual <= i.punto_reorden {$whereInvSuc}
+            WHERE i.stock_actual > 0 AND (i.stock_actual <= 5 OR i.stock_actual <= i.punto_reorden) {$whereInvSuc}
             ORDER BY i.stock_actual ASC
             LIMIT 25
         ");
         $bajoStock = $stmtBajoStock->fetchAll(PDO::FETCH_ASSOC);
+
+        $stmtEvolucion = $this->db->prepare("
+            SELECT 
+                DATE(ped.fecha_pedido) AS fecha,
+                COUNT(ped.id) AS pedidos_dia,
+                COALESCE(SUM(ped.total), 0) AS total_dia
+            FROM pedidos ped
+            {$wherePed}
+            GROUP BY DATE(ped.fecha_pedido)
+            ORDER BY fecha ASC
+        ");
+        $stmtEvolucion->execute($paramsPeriodo);
+        $evolucion = $stmtEvolucion->fetchAll(PDO::FETCH_ASSOC);
+
+        $whereKardex = $sucursalId ? "AND k.sucursal_id = {$sucursalId}" : "";
+        $stmtMovimientos = $this->db->prepare("
+            SELECT 
+                k.tipo_movimiento,
+                COUNT(k.id) AS total_operaciones,
+                COALESCE(SUM(k.cantidad), 0) AS total_unidades,
+                COALESCE(SUM(k.cantidad * k.costo_unitario), 0) AS valor_monetario_soles
+            FROM movimientos_inventario k
+            WHERE DATE(k.created_at) BETWEEN :f_inicio AND :f_fin {$whereKardex}
+            GROUP BY k.tipo_movimiento
+        ");
+        $stmtMovimientos->execute([':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin]);
+        $movimientos = $stmtMovimientos->fetchAll(PDO::FETCH_ASSOC);
 
         Response::success([
             'filtros' => [
@@ -364,7 +406,8 @@ class ReporteController {
                 'margen_porcentaje' => $margenPorcentaje
             ],
             // 4. Productos de Alta Rotación (Prompt 3.2)
-            'alta_rotacion' => $altaRotacion,
+            'alta_rotacion'          => $altaRotacion,
+            'top_productos_vendidos' => $altaRotacion,
             // 5. Métodos de Pago Independientes (Prompt 3.3)
             'metodos_pago' => $metodosPagoList,
             // 6. Resumen General del Periodo
@@ -376,16 +419,19 @@ class ReporteController {
             ],
             'comparativa_sucursales' => $comparativaSucursales,
             'productos_agotados'     => $agotados,
-            'productos_bajo_stock'   => $bajoStock
+            'productos_bajo_stock'   => $bajoStock,
+            'evolucion_diaria'       => $evolucion,
+            'resumen_kardex'         => $movimientos
         ]);
     }
 
     /**
      * GET /api/reportes/mermas?sucursal_id=1
+     * REQUERIMIENTO 4: Reporte de Mermas / Desmedros con usuario responsable, sucursal, motivo y stock actualizado.
      */
     public function mermas(): void {
-        $user = $GLOBALS['auth_user'] ?? null;
-        $sucursalId = (int)($_GET['sucursal_id'] ?? 1);
+        $user = $GLOBALS['auth_user'] ?? JwtAuthMiddleware::getUser();
+        $sucursalId = isset($_GET['sucursal_id']) && is_numeric($_GET['sucursal_id']) ? (int)$_GET['sucursal_id'] : 1;
 
         if ($user && ($user['rol_nombre'] ?? '') === 'Supervisor') {
             $sucursalId = (int)$user['sucursal_id'];
@@ -393,20 +439,49 @@ class ReporteController {
 
         RoleMiddleware::validateBranchAccess($sucursalId);
 
-        $sql = "SELECT k.*, 
+        $sql = "SELECT k.id,
+                       k.sucursal_id,
+                       s.nombre AS sucursal_nombre,
+                       k.producto_id,
                        p.nombre AS producto_nombre,
                        p.codigo_sku,
-                       (k.cantidad * k.costo_unitario) AS perdida_estimada_soles
+                       p.unidad_medida,
+                       k.lote_id,
+                       l.codigo_lote,
+                       k.usuario_id,
+                       COALESCE(CONCAT(u.nombres, ' ', u.apellidos), 'Sistema / Auditoría') AS usuario_nombre,
+                       COALESCE(r.nombre, 'Supervisor') AS usuario_rol,
+                       k.documento_referencia,
+                       k.cantidad,
+                       k.costo_unitario,
+                       ROUND(k.cantidad * k.costo_unitario, 2) AS perdida_estimada_soles,
+                       k.saldo_anterior,
+                       k.saldo_nuevo,
+                       k.observaciones,
+                       k.created_at
                 FROM movimientos_inventario k
                 JOIN productos p ON k.producto_id = p.id
+                JOIN sucursales s ON k.sucursal_id = s.id
+                LEFT JOIN lotes l ON k.lote_id = l.id
+                LEFT JOIN usuarios u ON k.usuario_id = u.id
+                LEFT JOIN roles r ON u.rol_id = r.id
                 WHERE k.sucursal_id = :sucursal_id 
                   AND k.tipo_movimiento = 'AJUSTE_MERMA'
                 ORDER BY k.id DESC";
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute([':sucursal_id' => $sucursalId]);
-        $mermas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        Response::success($mermas);
+        $totalPerdida = array_reduce($detalles, fn($acc, $row) => $acc + (float)$row['perdida_estimada_soles'], 0.0);
+        $totalUnidades = array_reduce($detalles, fn($acc, $row) => $acc + (int)$row['cantidad'], 0);
+
+        Response::success([
+            'sucursal_id'          => $sucursalId,
+            'total_perdida_soles'  => round($totalPerdida, 2),
+            'total_unidades_baja'  => $totalUnidades,
+            'total_incidentes'     => count($detalles),
+            'detalles'             => $detalles
+        ]);
     }
 }

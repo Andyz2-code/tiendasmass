@@ -100,6 +100,20 @@
       const [view, setView] = useState(() => initView);
       const [sucursales, setSucursales] = useState([]);
       const [selectedBranch, setSelectedBranch] = useState(null);
+      const [lowStockAlerts, setLowStockAlerts] = useState([]);
+      const [isLowStockPopupOpen, setIsLowStockPopupOpen] = useState(false);
+
+      useEffect(() => {
+        if (!user || !token || !selectedBranch?.id) return;
+        const loadLowStock = () => {
+          api.get(`/inventarios/low-stock-alerts?sucursal_id=${selectedBranch.id}`)
+            .then(res => setLowStockAlerts(res.data?.alertas || []))
+            .catch(() => {});
+        };
+        loadLowStock();
+        const t = setInterval(loadLowStock, 12000);
+        return () => clearInterval(t);
+      }, [user, token, selectedBranch?.id, view]);
 
       useEffect(() => {
         api.get('/sucursales').then((res) => {
@@ -222,13 +236,14 @@
               {[
                 { id: 'reportes_generales', label: 'Reportes Generales de Ventas', icon: '📈', badge: 'Principal' },
                 { id: 'productos', label: 'Catálogo & Edición de Productos', icon: '📦', badge: 'Gestión' },
-                { id: 'dashboard', label: 'Dashboard ABC & POR', icon: '📊' },
+                { id: 'dashboard', label: 'Dashboard ABC & Stock ≤ 5', icon: '📊', badge: lowStockAlerts.length > 0 ? `⚠️ ${lowStockAlerts.length}` : null },
                 { id: 'inventario', label: 'Inventario & Kardex Físico', icon: '📋' },
                 { id: 'almacen', label: 'Almacén & Picking PEPS', icon: '🏭' },
                 { id: 'conteos', label: 'Conteos Cíclicos ABC', icon: '📝' },
                 { id: 'delivery', label: 'Rastreo Satelital GPS', icon: '🛵' },
-                { id: 'banners', label: 'Banners & Promociones', icon: '🖼️', badge: 'Nuevo' },
-                { id: 'reportes', label: 'Auditoría Mermas NIC 2', icon: '📉' }
+                { id: 'banners', label: 'Banners & Promociones', icon: '🖼️' },
+                { id: 'reportes', label: 'Módulo de Desmedro / Merma', icon: '📉', badge: 'NIC 2' },
+                ...(isAdmin ? [{ id: 'usuarios', label: 'Usuarios & Supervisores', icon: '👥', badge: 'Admin' }] : [])
               ].map(item => (
                 <button
                   key={item.id}
@@ -278,6 +293,53 @@
               </div>
 
               <div className="flex items-center gap-3">
+                {/* Requerimiento 3: Disparador de Alertas de Stock Bajo (<= 5 unidades) en el Panel */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsLowStockPopupOpen(!isLowStockPopupOpen)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-extrabold border transition ${
+                      lowStockAlerts.length > 0
+                        ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md'
+                        : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                    }`}
+                  >
+                    <span>🔔 Alertas Stock ≤ 5</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                      lowStockAlerts.length > 0 ? 'bg-white text-red-700' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {lowStockAlerts.length}
+                    </span>
+                  </button>
+
+                  {isLowStockPopupOpen && (
+                    <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 p-4 space-y-3 text-xs">
+                      <div className="flex justify-between items-center pb-2 border-b">
+                        <span className="font-extrabold text-stone-900">⚠️ Productos con Stock ≤ 5 Unidades</span>
+                        <button onClick={() => setIsLowStockPopupOpen(false)} className="text-stone-400 font-bold">✕</button>
+                      </div>
+                      {lowStockAlerts.length > 0 ? (
+                        <div className="space-y-2 max-h-64 overflow-y-auto custom-scroll">
+                          {lowStockAlerts.map((al, idx) => (
+                            <div key={idx} className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex justify-between items-center">
+                              <div>
+                                <div className="font-extrabold text-red-950">{al.producto_nombre}</div>
+                                <div className="text-[10px] text-red-700 font-mono">{al.codigo_sku} • {al.sucursal_nombre}</div>
+                              </div>
+                              <span className="px-2 py-1 bg-red-600 text-white font-black rounded-lg text-[10px] shrink-0">
+                                {al.stock_actual} un.
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-5 text-center text-stone-400 font-semibold">
+                          ✓ Todos los productos superan las 5 unidades en {selectedBranch?.nombre}.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 <a
                   href="index.html"
                   target="_blank"
@@ -299,7 +361,8 @@
               {view === 'delivery' && <AdminDeliveryView branch={selectedBranch} user={user} />}
               {view === 'reportes_generales' && <AdminReportesGeneralesView branch={selectedBranch} user={user} />}
               {view === 'banners' && <AdminBannersView branch={selectedBranch} user={user} sucursales={sucursales} />}
-              {view === 'reportes' && <AdminReportesView branch={selectedBranch} user={user} />}
+              {view === 'reportes' && <AdminReportesView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'usuarios' && <AdminUsuariosView user={user} sucursales={sucursales} />}
             </main>
             <AccessibilityWidget />
           </div>
@@ -1703,13 +1766,14 @@
     }
 
     // ==========================================
-    // 3. DASHBOARD ADMINISTRATIVO ABC / POR
+    // 3. DASHBOARD ADMINISTRATIVO ABC / POR + TRIGGER ALERTA STOCK BAJO (<= 5 UNIDADES)
     // ==========================================
     function AdminDashboardView({ branch }) {
       const [kpi, setKpi] = useState(null);
       const [abc, setAbc] = useState(null);
       const [reorder, setReorder] = useState(null);
       const [obs, setObs] = useState(null);
+      const [lowStock5, setLowStock5] = useState([]);
 
       useEffect(() => {
         if (!branch?.id) return;
@@ -1717,18 +1781,58 @@
           api.get(`/reportes/dashboard-kpi?sucursal_id=${branch.id}`),
           api.get(`/inventarios/abc?sucursal_id=${branch.id}`),
           api.get(`/inventarios/reorder-alerts?sucursal_id=${branch.id}`),
-          api.get(`/inventarios/obsolescence?sucursal_id=${branch.id}`)
-        ]).then(([kRes, aRes, rRes, oRes]) => {
+          api.get(`/inventarios/obsolescence?sucursal_id=${branch.id}`),
+          api.get(`/inventarios/low-stock-alerts?sucursal_id=${branch.id}`)
+        ]).then(([kRes, aRes, rRes, oRes, lRes]) => {
           setKpi(kRes.data || {});
           setAbc(aRes.data || {});
           setReorder(rRes.data || {});
           setObs(oRes.data || {});
+          setLowStock5(lRes.data?.alertas || []);
         });
       }, [branch]);
 
       return (
         <div className="space-y-6">
           <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Dashboard Ejecutivo & Control de Inventarios</h1>
+
+          {/* Requerimiento 3: Disparador de Alertas de Stock Bajo (<= 5 unidades) */}
+          <div className={`p-5 rounded-3xl border-2 space-y-3 ${lowStock5.length > 0 ? 'bg-red-50 border-red-400' : 'bg-emerald-50 border-emerald-200'}`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-black text-stone-900 flex items-center gap-2">
+                  <span>🔔 Sistema de Alertas de Stock Bajo (Umbral Crítico ≤ 5 Unidades)</span>
+                </h2>
+                <p className="text-xs text-stone-600">
+                  Disparador automático (Trigger) cuando el inventario de cualquier producto llega exactamente o es menor a 5 unidades en {branch?.nombre}.
+                </p>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-black ${lowStock5.length > 0 ? 'bg-red-600 text-white' : 'bg-emerald-700 text-white'}`}>
+                {lowStock5.length} en Alerta (≤ 5 un.)
+              </span>
+            </div>
+
+            {lowStock5.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {lowStock5.map((al, i) => (
+                  <div key={i} className="bg-white p-3 rounded-2xl border border-red-200 flex justify-between items-center text-xs shadow-2xs">
+                    <div>
+                      <div className="font-extrabold text-stone-900">{al.producto_nombre}</div>
+                      <div className="text-[10px] text-stone-500 font-mono">{al.codigo_sku} • {al.sucursal_nombre}</div>
+                    </div>
+                    <span className="px-2.5 py-1 bg-red-600 text-white font-black rounded-xl text-xs">
+                      {al.stock_actual} un.
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs font-bold text-emerald-800">
+                ✓ Ningún producto tiene 5 o menos unidades en esta sucursal.
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white p-5 rounded-2xl border shadow-sm">
               <span className="text-[10px] font-bold text-stone-400 uppercase">Ventas del Mes</span>
@@ -1743,8 +1847,8 @@
               <div className="text-2xl font-extrabold text-stone-900 mt-1">S/. {parseFloat(kpi?.valor_inventario_soles || 0).toFixed(2)}</div>
             </div>
             <div className="bg-white p-5 rounded-2xl border shadow-sm">
-              <span className="text-[10px] font-bold text-stone-400 uppercase">Alertas POR Críticas</span>
-              <div className="text-2xl font-extrabold text-red-600 mt-1">{kpi?.alertas_reorden_count || 0}</div>
+              <span className="text-[10px] font-bold text-stone-400 uppercase">Alertas Stock ≤ 5 / POR</span>
+              <div className="text-2xl font-extrabold text-red-600 mt-1">{lowStock5.length} / {kpi?.alertas_reorden_count || 0}</div>
             </div>
           </div>
 
@@ -3489,28 +3593,559 @@
     }
 
     // ==========================================
-    // 8. AUDITORÍA MERMAS NIC 2
+    // 8. REQUERIMIENTO 4: MÓDULO DE DESMEDRO O MERMA (FUNCIÓN + REPORTE NIC 2)
     // ==========================================
-    function AdminReportesView({ branch }) {
+    function AdminReportesView({ branch, user, sucursales }) {
       const [mermas, setMermas] = useState({ total_perdida_soles: 0, detalles: [] });
+      const [inventario, setInventario] = useState([]);
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+      const [feedback, setFeedback] = useState(null);
+      const isAdmin = user?.rol_nombre === 'Administrador';
+
+      const [form, setForm] = useState({
+        sucursal_id: branch?.id || 1,
+        producto_id: '',
+        cantidad: 1,
+        motivo: 'VENCIMIENTO_CADUCIDAD',
+        observaciones: ''
+      });
+
+      const motivos = [
+        { value: 'VENCIMIENTO_CADUCIDAD', label: 'Caducidad / Fecha de Vencimiento Cumplida (NIC 2)' },
+        { value: 'DANO_FISICO_ROTURA', label: 'Rotura de Envase / Daño Físico en Manipulación' },
+        { value: 'DETERIORO_ALMACEN', label: 'Deterioro o Humedad en Almacén' },
+        { value: 'FALLA_CADENA_FRIO', label: 'Falla en Cadena de Frío / Refrigeración' },
+        { value: 'ROBO_EXTRAVIO', label: 'Pérdida / Robo / Faltante Detectado' },
+        { value: 'OTRO', label: 'Otro Motivo Operativo Justificado' }
+      ];
+
+      const loadData = (sucId) => {
+        const target = sucId || branch?.id || 1;
+        Promise.all([
+          api.get(`/reportes/mermas?sucursal_id=${target}`),
+          api.get(`/inventarios?sucursal_id=${target}`)
+        ]).then(([mRes, iRes]) => {
+          const raw = mRes.data || {};
+          if (Array.isArray(raw)) {
+            const tot = raw.reduce((a, r) => a + parseFloat(r.perdida_estimada_soles || 0), 0);
+            setMermas({ total_perdida_soles: tot, detalles: raw });
+          } else {
+            setMermas(raw);
+          }
+          setInventario(iRes.data || []);
+        }).catch(console.error);
+      };
+
       useEffect(() => {
-        if (!branch?.id) return;
-        api.get(`/reportes/mermas?sucursal_id=${branch.id}`).then(r => setMermas(r.data || { total_perdida_soles: 0, detalles: [] }));
+        if (branch?.id) {
+          setForm(prev => ({ ...prev, sucursal_id: branch.id }));
+          loadData(branch.id);
+        }
       }, [branch]);
+
+      const selectedProd = inventario.find(i => Number(i.producto_id) === Number(form.producto_id));
+
+      const handleBranchInModal = (newBId) => {
+        const bId = Number(newBId);
+        setForm(prev => ({ ...prev, sucursal_id: bId, producto_id: '' }));
+        api.get(`/inventarios?sucursal_id=${bId}`).then(res => {
+          const list = res.data || [];
+          setInventario(list);
+          if (list.length > 0) {
+            setForm(prev => ({ ...prev, sucursal_id: bId, producto_id: list[0].producto_id }));
+          }
+        });
+      };
+
+      const handleRegisterMerma = async (e) => {
+        e.preventDefault();
+        setErrorMsg('');
+        if (!form.producto_id) return setErrorMsg('Seleccione el producto a dar de baja.');
+        const cant = Number(form.cantidad);
+        if (cant <= 0) return setErrorMsg('La cantidad a dar de baja debe ser mayor a 0.');
+        if (selectedProd && cant > Number(selectedProd.stock_actual)) {
+          return setErrorMsg(`La cantidad (${cant}) excede el stock disponible (${selectedProd.stock_actual} unidades).`);
+        }
+
+        setSaving(true);
+        try {
+          const res = await api.post('/inventarios/mermas', {
+            sucursal_id: Number(form.sucursal_id),
+            producto_id: Number(form.producto_id),
+            cantidad: cant,
+            motivo: form.motivo,
+            observaciones: form.observaciones
+          });
+          setIsModalOpen(false);
+          setFeedback({ message: res.message, data: res.data });
+          loadData(Number(form.sucursal_id));
+        } catch (err) {
+          setErrorMsg(err.message);
+        } finally {
+          setSaving(false);
+        }
+      };
 
       return (
         <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Auditoría de Mermas & Desmedros (NIC 2)</h1>
-            <button onClick={() => window.print()} className="px-4 py-2 bg-stone-950 text-white font-bold rounded-xl text-xs shadow">🖨 Imprimir Informe</button>
-          </div>
-          <div className="p-5 bg-red-50 rounded-2xl border border-red-200 flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border shadow-xs">
             <div>
-              <span className="text-[10px] font-bold text-red-600 uppercase">Pérdida Total por Mermas Contabilizadas</span>
-              <div className="text-3xl font-extrabold text-red-900 mt-1">S/. {parseFloat(mermas.total_perdida_soles || 0).toFixed(2)}</div>
+              <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Módulo de Desmedro, Merma y Bajas de Inventario (NIC 2)</h1>
+              <p className="text-xs text-stone-500 mt-1">
+                Registra pérdidas o desmedros seleccionando producto, cantidad, sucursal y motivo, auditando al usuario que ejecuta la baja.
+              </p>
             </div>
-            <div className="text-4xl text-red-300">📉</div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setErrorMsg('');
+                  setForm({
+                    sucursal_id: branch?.id || 1,
+                    producto_id: inventario[0]?.producto_id || '',
+                    cantidad: 1,
+                    motivo: 'VENCIMIENTO_CADUCIDAD',
+                    observaciones: ''
+                  });
+                  setIsModalOpen(true);
+                }}
+                className="px-4 py-2.5 bg-mass-red hover:bg-red-700 text-white font-extrabold rounded-xl text-xs shadow-md transition"
+              >
+                + Registrar Desmedro / Merma
+              </button>
+              <button onClick={() => window.print()} className="px-4 py-2.5 bg-stone-950 text-white font-bold rounded-xl text-xs shadow">
+                🖨 Imprimir Informe
+              </button>
+            </div>
           </div>
+
+          {feedback && (
+            <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-2xl text-xs space-y-2">
+              <div className="flex justify-between items-center font-extrabold text-emerald-950">
+                <span>✓ {feedback.message}</span>
+                <button onClick={() => setFeedback(null)} className="text-stone-400 font-bold">✕</button>
+              </div>
+              {feedback.data?.alerta_stock_bajo?.disparada && (
+                <div className="p-3 bg-red-100 border border-red-300 rounded-xl text-red-900 font-extrabold">
+                  🔔 {feedback.data.alerta_stock_bajo.mensaje}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-5 bg-red-50 rounded-2xl border border-red-200 flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-red-600 uppercase">Pérdida Total por Mermas Contabilizadas</span>
+                <div className="text-2xl font-extrabold text-red-900 mt-1">S/. {parseFloat(mermas.total_perdida_soles || 0).toFixed(2)}</div>
+              </div>
+              <div className="text-3xl">📉</div>
+            </div>
+            <div className="p-5 bg-white rounded-2xl border flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-stone-400 uppercase">Incidentes de Desmedro</span>
+                <div className="text-2xl font-extrabold text-stone-900 mt-1">{mermas.detalles?.length || 0} bajas</div>
+              </div>
+              <div className="text-3xl">📦</div>
+            </div>
+            <div className="p-5 bg-amber-50 rounded-2xl border border-amber-200 flex justify-between items-center">
+              <div>
+                <span className="text-[10px] font-bold text-amber-800 uppercase">Usuario Responsable en Sesión</span>
+                <div className="text-sm font-extrabold text-stone-900 mt-1">{user?.nombres} {user?.apellidos}</div>
+                <span className="text-[10px] text-amber-800 font-bold">{user?.rol_nombre} • {branch?.nombre}</span>
+              </div>
+              <div className="text-3xl">👤</div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border shadow-xs overflow-hidden text-xs">
+            <div className="p-4 bg-stone-50 border-b font-bold text-stone-700 flex justify-between">
+              <span>Historial de Bajas por Merma / Desmedro ({mermas.detalles?.length || 0})</span>
+              <span className="text-stone-500">Kardex Físico-Valorado NIC 2</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-stone-100 text-stone-600 uppercase text-[10px] font-bold border-b">
+                  <tr>
+                    <th className="p-3">Fecha / Doc.</th>
+                    <th className="p-3">Sucursal</th>
+                    <th className="p-3">Producto</th>
+                    <th className="p-3 text-center">Cant. Baja</th>
+                    <th className="p-3 text-center">Stock Ant. → Final</th>
+                    <th className="p-3 text-right">Pérdida (S/.)</th>
+                    <th className="p-3">Motivo del Desmedro</th>
+                    <th className="p-3">Usuario que Registró</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y font-medium">
+                  {mermas.detalles?.map((m, idx) => (
+                    <tr key={idx} className="hover:bg-red-50/30">
+                      <td className="p-3">
+                        <div className="font-mono font-bold text-stone-900">{m.documento_referencia}</div>
+                        <div className="text-[10px] text-stone-400">{m.created_at}</div>
+                      </td>
+                      <td className="p-3 font-bold text-stone-700">{m.sucursal_nombre || branch?.nombre}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-stone-900">{m.producto_nombre}</div>
+                        <div className="text-[10px] font-mono text-stone-400">{m.codigo_sku}</div>
+                      </td>
+                      <td className="p-3 text-center font-extrabold text-red-600">-{m.cantidad} un.</td>
+                      <td className="p-3 text-center font-mono">
+                        <span>{m.saldo_anterior}</span> → <strong className={Number(m.saldo_nuevo) <= 5 ? 'text-red-600' : 'text-stone-900'}>{m.saldo_nuevo} un.</strong>
+                      </td>
+                      <td className="p-3 text-right font-extrabold text-red-600">S/. {parseFloat(m.perdida_estimada_soles || 0).toFixed(2)}</td>
+                      <td className="p-3 text-[11px] max-w-xs">{m.observaciones}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-stone-900">{m.usuario_nombre || `${user?.nombres} ${user?.apellidos}`}</div>
+                        <div className="text-[10px] text-amber-700 font-bold">{m.usuario_rol || user?.rol_nombre}</div>
+                      </td>
+                    </tr>
+                  ))}
+                  {(!mermas.detalles || mermas.detalles.length === 0) && (
+                    <tr>
+                      <td colSpan="8" className="p-8 text-center text-stone-400 font-bold">
+                        No hay mermas registradas en esta sucursal.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto text-xs shadow-2xl">
+                <div className="flex justify-between items-center pb-3 border-b">
+                  <h2 className="text-base font-extrabold text-stone-900">Registrar Desmedro o Merma de Producto</h2>
+                  <button onClick={() => setIsModalOpen(false)} className="font-bold text-stone-400">✕</button>
+                </div>
+
+                {errorMsg && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl font-bold">{errorMsg}</div>}
+
+                <form onSubmit={handleRegisterMerma} className="space-y-3.5">
+                  <div className="p-3 bg-stone-50 rounded-xl border flex justify-between items-center">
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase block">Usuario que realiza la acción:</span>
+                      <span className="font-extrabold text-stone-900">{user?.nombres} {user?.apellidos}</span>
+                    </div>
+                    <span className="px-2.5 py-1 bg-amber-100 text-amber-900 rounded-lg font-black text-[10px]">{user?.rol_nombre}</span>
+                  </div>
+
+                  <div>
+                    <label className="font-bold block mb-1">Sucursal Afectada *</label>
+                    {isAdmin ? (
+                      <select
+                        required
+                        value={form.sucursal_id}
+                        onChange={e => handleBranchInModal(e.target.value)}
+                        className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                      >
+                        {(sucursales || []).map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo_tienda})</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" disabled value={branch?.nombre || user?.sucursal_nombre} className="w-full p-2.5 border rounded-xl bg-stone-100 font-bold" />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="font-bold block mb-1">Producto a Dar de Baja *</label>
+                    <select
+                      required
+                      value={form.producto_id}
+                      onChange={e => setForm({ ...form, producto_id: e.target.value })}
+                      className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                    >
+                      <option value="">-- Seleccione un producto --</option>
+                      {inventario.map(item => (
+                        <option key={item.producto_id} value={item.producto_id} disabled={Number(item.stock_actual) <= 0}>
+                          {item.producto_nombre} ({item.codigo_sku}) — Stock actual: {item.stock_actual} un.
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selectedProd && (
+                    <div className="grid grid-cols-3 gap-2 p-3 bg-amber-50 rounded-xl border border-amber-200 text-center">
+                      <div>
+                        <div className="text-[10px] text-stone-500 font-bold">Stock Actual</div>
+                        <div className="font-black text-sm">{selectedProd.stock_actual} un.</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-red-600 font-bold">Cant. a Dar de Baja</div>
+                        <div className="font-black text-sm text-red-600">-{form.cantidad || 0} un.</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] text-stone-500 font-bold">Stock Final</div>
+                        <div className="font-black text-sm text-emerald-800">{Math.max(0, Number(selectedProd.stock_actual) - Number(form.cantidad || 0))} un.</div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="font-bold block mb-1">Cantidad de Baja *</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max={selectedProd?.stock_actual || 999}
+                        required
+                        value={form.cantidad}
+                        onChange={e => setForm({ ...form, cantidad: e.target.value })}
+                        className="w-full p-2.5 border rounded-xl font-extrabold"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="font-bold block mb-1">Motivo del Desmedro *</label>
+                      <select
+                        required
+                        value={form.motivo}
+                        onChange={e => setForm({ ...form, motivo: e.target.value })}
+                        className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                      >
+                        {motivos.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold block mb-1">Observaciones / Justificación</label>
+                    <textarea
+                      rows="2"
+                      value={form.observaciones}
+                      onChange={e => setForm({ ...form, observaciones: e.target.value })}
+                      placeholder="Detalle adicional de la merma o inspección física..."
+                      className="w-full p-2.5 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold">Cancelar</button>
+                    <button type="submit" disabled={saving} className="px-5 py-2 bg-mass-red text-white font-extrabold rounded-xl shadow">
+                      {saving ? 'Procesando...' : 'Confirmar Baja y Actualizar Stock'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 9. REQUERIMIENTO 5: GESTIÓN DE USUARIOS (ADMINISTRADOR REGISTRA SUPERVISORES CON SUCURSAL OBLIGATORIA)
+    // ==========================================
+    function AdminUsuariosView({ user, sucursales }) {
+      const [usuarios, setUsuarios] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [isModalOpen, setIsModalOpen] = useState(false);
+      const [saving, setSaving] = useState(false);
+      const [errorMsg, setErrorMsg] = useState('');
+      const [successMsg, setSuccessMsg] = useState('');
+
+      const [form, setForm] = useState({
+        rol_id: 2,
+        sucursal_id: sucursales?.[0]?.id || 1,
+        nombres: '',
+        apellidos: '',
+        email: '',
+        telefono: '',
+        password: ''
+      });
+
+      const loadUsuarios = () => {
+        setLoading(true);
+        api.get('/usuarios').then(res => {
+          setUsuarios(res.data || []);
+        }).catch(console.error).finally(() => setLoading(false));
+      };
+
+      useEffect(() => { loadUsuarios(); }, []);
+
+      const handleCreateSupervisor = async (e) => {
+        e.preventDefault();
+        setErrorMsg('');
+        if (Number(form.rol_id) === 2 && !form.sucursal_id) {
+          return setErrorMsg('Es obligatorio seleccionar la Sucursal que pertenecerá y administrará el Supervisor.');
+        }
+
+        setSaving(true);
+        try {
+          const res = await api.post('/usuarios', {
+            ...form,
+            rol_id: Number(form.rol_id),
+            sucursal_id: Number(form.rol_id) === 2 ? Number(form.sucursal_id) : null
+          });
+          setIsModalOpen(false);
+          setSuccessMsg(res.message || 'Supervisor registrado con éxito.');
+          setTimeout(() => setSuccessMsg(''), 5000);
+          loadUsuarios();
+        } catch (err) {
+          setErrorMsg(err.message);
+        } finally {
+          setSaving(false);
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border shadow-xs">
+            <div>
+              <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Gestión de Usuarios y Supervisores de Sucursal</h1>
+              <p className="text-xs text-stone-500 mt-1">
+                Módulo exclusivo de Administrador para registrar nuevos usuarios con rol de <strong>Supervisor</strong> y asignarles obligatoriamente su <strong>Sucursal</strong>.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setErrorMsg('');
+                setForm({
+                  rol_id: 2,
+                  sucursal_id: sucursales?.[0]?.id || 1,
+                  nombres: '',
+                  apellidos: '',
+                  email: '',
+                  telefono: '',
+                  password: ''
+                });
+                setIsModalOpen(true);
+              }}
+              className="px-4 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-xl text-xs shadow-md transition"
+            >
+              + Registrar Nuevo Supervisor
+            </button>
+          </div>
+
+          {successMsg && (
+            <div className="p-4 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl text-xs font-extrabold">
+              ✓ {successMsg}
+            </div>
+          )}
+
+          <div className="bg-white rounded-3xl border shadow-xs overflow-hidden text-xs">
+            <div className="p-4 bg-stone-50 border-b font-bold text-stone-700">
+              Usuarios Internos Registrados ({usuarios.length})
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead className="bg-stone-100 text-stone-600 uppercase text-[10px] font-bold border-b">
+                  <tr>
+                    <th className="p-3">ID</th>
+                    <th className="p-3">Nombres y Apellidos</th>
+                    <th className="p-3">Correo Institucional</th>
+                    <th className="p-3">Teléfono</th>
+                    <th className="p-3">Rol</th>
+                    <th className="p-3">Sucursal Asignada</th>
+                    <th className="p-3 text-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y font-medium">
+                  {usuarios.map(u => (
+                    <tr key={u.id} className="hover:bg-stone-50">
+                      <td className="p-3 font-mono text-stone-400">#{u.id}</td>
+                      <td className="p-3 font-bold text-stone-900">{u.nombres} {u.apellidos}</td>
+                      <td className="p-3 font-mono">{u.email}</td>
+                      <td className="p-3">{u.telefono || '-'}</td>
+                      <td className="p-3">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          u.rol_nombre === 'Administrador' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-900'
+                        }`}>
+                          {u.rol_nombre}
+                        </span>
+                      </td>
+                      <td className="p-3 font-bold text-stone-800">
+                        {u.rol_nombre === 'Administrador' ? '🌐 Global (Todas las sedes)' : `🏢 ${u.sucursal_nombre || 'Sede #' + u.sucursal_id}`}
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800">
+                          {Number(u.estado) === 1 ? 'ACTIVO' : 'INACTIVO'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {isModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+              <div className="w-full max-w-lg bg-white rounded-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto text-xs shadow-2xl">
+                <div className="flex justify-between items-center pb-3 border-b">
+                  <h2 className="text-base font-extrabold text-stone-900">Registrar Nuevo Usuario Supervisor</h2>
+                  <button onClick={() => setIsModalOpen(false)} className="font-bold text-stone-400">✕</button>
+                </div>
+
+                {errorMsg && <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl font-bold">{errorMsg}</div>}
+
+                <form onSubmit={handleCreateSupervisor} className="space-y-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold block mb-1">Rol del Usuario *</label>
+                      <select
+                        value={form.rol_id}
+                        onChange={e => setForm({ ...form, rol_id: Number(e.target.value) })}
+                        className="w-full p-2.5 border rounded-xl font-extrabold bg-amber-50"
+                      >
+                        <option value={2}>📦 Supervisor de Sucursal</option>
+                        <option value={1}>👑 Administrador Global</option>
+                      </select>
+                    </div>
+                    {Number(form.rol_id) === 2 && (
+                      <div>
+                        <label className="font-extrabold text-mass-red block mb-1">🏢 Sucursal Asignada (Obligatorio) *</label>
+                        <select
+                          required
+                          value={form.sucursal_id}
+                          onChange={e => setForm({ ...form, sucursal_id: e.target.value })}
+                          className="w-full p-2.5 border-2 border-mass-red rounded-xl font-extrabold bg-white"
+                        >
+                          <option value="">-- Seleccione Sucursal --</option>
+                          {(sucursales || []).map(s => <option key={s.id} value={s.id}>{s.nombre} ({s.codigo_tienda})</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold block mb-1">Nombres *</label>
+                      <input type="text" required value={form.nombres} onChange={e => setForm({ ...form, nombres: e.target.value })} className="w-full p-2.5 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Apellidos *</label>
+                      <input type="text" required value={form.apellidos} onChange={e => setForm({ ...form, apellidos: e.target.value })} className="w-full p-2.5 border rounded-xl" />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold block mb-1">Correo Institucional *</label>
+                      <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="supervisor.sede@tiendasmass.pe" className="w-full p-2.5 border rounded-xl" />
+                    </div>
+                    <div>
+                      <label className="font-bold block mb-1">Teléfono</label>
+                      <input type="tel" value={form.telefono} onChange={e => setForm({ ...form, telefono: e.target.value })} className="w-full p-2.5 border rounded-xl" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold block mb-1">Contraseña de Acceso *</label>
+                    <input type="password" required minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full p-2.5 border rounded-xl" />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t">
+                    <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded-xl font-bold">Cancelar</button>
+                    <button type="submit" disabled={saving} className="px-5 py-2 bg-mass-yellow text-stone-950 font-extrabold rounded-xl shadow">
+                      {saving ? 'Guardando...' : 'Registrar Supervisor y Asignar Sucursal'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       );
     }

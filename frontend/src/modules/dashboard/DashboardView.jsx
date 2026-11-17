@@ -8,11 +8,10 @@ import {
   Boxes,
   AlertTriangle,
   Flame,
-  Clock,
   RefreshCw,
   TrendingUp,
-  ShieldCheck,
-  CheckCircle2
+  CheckCircle2,
+  BellRing
 } from 'lucide-react';
 
 export const DashboardView = () => {
@@ -21,22 +20,25 @@ export const DashboardView = () => {
   const [abcData, setAbcData] = useState(null);
   const [reorderData, setReorderData] = useState(null);
   const [obsolescenceData, setObsolescenceData] = useState(null);
+  const [lowStock5Data, setLowStock5Data] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     if (!selectedBranch?.id) return;
     setLoading(true);
     try {
-      const [kpiRes, abcRes, reorderRes, obsRes] = await Promise.all([
+      const [kpiRes, abcRes, reorderRes, obsRes, lowStockRes] = await Promise.all([
         api.get(`/reportes/dashboard-kpi?sucursal_id=${selectedBranch.id}`),
         api.get(`/inventarios/abc?sucursal_id=${selectedBranch.id}`),
         api.get(`/inventarios/reorder-alerts?sucursal_id=${selectedBranch.id}`),
-        api.get(`/inventarios/obsolescence?sucursal_id=${selectedBranch.id}`)
+        api.get(`/inventarios/obsolescence?sucursal_id=${selectedBranch.id}`),
+        api.get(`/inventarios/low-stock-alerts?sucursal_id=${selectedBranch.id}`)
       ]);
       setKpis(kpiRes.data || {});
       setAbcData(abcRes.data || {});
       setReorderData(reorderRes.data || {});
       setObsolescenceData(obsRes.data || {});
+      setLowStock5Data(lowStockRes.data || { alertas: [] });
     } catch (err) {
       console.error('Error al cargar datos del dashboard:', err);
     } finally {
@@ -61,6 +63,8 @@ export const DashboardView = () => {
     );
   }
 
+  const alertasCriticas5 = lowStock5Data?.alertas || kpis?.alertas_stock_bajo_items || [];
+
   return (
     <div className="space-y-6">
       {/* Encabezado con botón de refresco */}
@@ -70,7 +74,7 @@ export const DashboardView = () => {
             Dashboard Ejecutivo & Control Inteligente de Inventarios
           </h1>
           <p className="text-xs text-stone-500">
-            Sucursal activa: <span className="font-bold text-stone-800">{selectedBranch?.nombre}</span> (Modelos ABC Pareto, PEPS NIC 2 y POR)
+            Sucursal activa: <span className="font-bold text-stone-800">{selectedBranch?.nombre}</span> (Modelos ABC Pareto, PEPS NIC 2, POR y Trigger Stock ≤ 5)
           </p>
         </div>
         <button
@@ -82,9 +86,56 @@ export const DashboardView = () => {
         </button>
       </div>
 
+      {/* REQUERIMIENTO 3: Panel de Disparador Automático de Stock Bajo (<= 5 unidades) */}
+      <div className={`p-5 rounded-3xl border-2 shadow-sm space-y-3 ${
+        alertasCriticas5.length > 0
+          ? 'bg-red-50 border-red-400'
+          : 'bg-emerald-50/70 border-emerald-200'
+      }`}>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2.5 rounded-2xl ${alertasCriticas5.length > 0 ? 'bg-red-600 text-white animate-pulse' : 'bg-emerald-600 text-white'}`}>
+              <BellRing className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-black text-stone-950">
+                Sistema de Alertas de Stock Bajo (Umbral Crítico ≤ 5 Unidades)
+              </h2>
+              <p className="text-xs text-stone-600">
+                Disparador automático (Trigger) que notifica cuando cualquier producto llega exactamente o es menor a 5 unidades en la sucursal.
+              </p>
+            </div>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-black shrink-0 ${
+            alertasCriticas5.length > 0 ? 'bg-red-600 text-white' : 'bg-emerald-700 text-white'
+          }`}>
+            {alertasCriticas5.length} {alertasCriticas5.length === 1 ? 'Producto en Alerta ≤ 5' : 'Productos en Alerta ≤ 5'}
+          </span>
+        </div>
+
+        {alertasCriticas5.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {alertasCriticas5.map((al, i) => (
+              <div key={i} className="bg-white p-3.5 rounded-2xl border border-red-200 flex items-center justify-between shadow-2xs">
+                <div>
+                  <div className="font-extrabold text-xs text-stone-900">{al.producto_nombre}</div>
+                  <div className="text-[10px] text-stone-500 font-mono">SKU: {al.codigo_sku} • {al.sucursal_nombre}</div>
+                </div>
+                <span className="px-2.5 py-1 rounded-xl bg-red-600 text-white font-black text-xs shrink-0">
+                  {al.stock_actual} un.
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-xs font-bold text-emerald-800 pl-1">
+            ✓ Todos los productos en {selectedBranch?.nombre} superan el umbral mínimo de 5 unidades.
+          </div>
+        )}
+      </div>
+
       {/* 1. Tarjetas KPI Principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Ventas Mes */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Ventas del Mes</span>
@@ -100,7 +151,6 @@ export const DashboardView = () => {
           </div>
         </div>
 
-        {/* Pedidos Totales */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Pedidos Atendidos</span>
@@ -116,7 +166,6 @@ export const DashboardView = () => {
           </div>
         </div>
 
-        {/* Inversión en Inventario */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Valor Inventario (Costo)</span>
@@ -132,15 +181,14 @@ export const DashboardView = () => {
           </div>
         </div>
 
-        {/* Alertas de Reorden POR */}
         <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Alertas de Stock POR</span>
+            <span className="text-[11px] font-bold text-stone-400 uppercase tracking-wider">Alertas Stock ≤ 5 / POR</span>
             <div className="text-2xl font-extrabold text-red-600 mt-1">
-              {kpis?.alertas_reorden_count || 0}
+              {alertasCriticas5.length} / {kpis?.alertas_reorden_count || 0}
             </div>
             <span className="text-[10px] text-red-600 font-bold mt-1 block">
-              Stock ≤ Punto de Reorden
+              Críticos ≤ 5 un. / Punto Reorden
             </span>
           </div>
           <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-700 flex items-center justify-center">
@@ -151,7 +199,6 @@ export const DashboardView = () => {
 
       {/* 2. Sección: Clasificación ABC (Pareto 80/20) & Consumo Responsable (IOI) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Pareto ABC */}
         <div className="lg:col-span-7 bg-white p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -187,7 +234,6 @@ export const DashboardView = () => {
             </div>
           </div>
 
-          {/* Tabla de Productos Top en Inversión */}
           <div className="overflow-x-auto text-xs">
             <table className="w-full text-left">
               <thead className="bg-stone-50 text-stone-500 uppercase text-[10px] font-bold border-y border-stone-200">
@@ -235,7 +281,6 @@ export const DashboardView = () => {
           </p>
 
           <div className="space-y-3">
-            {/* Lotes críticos 7 días */}
             {obsolescenceData?.lotes_criticos_7_dias?.length > 0 ? (
               obsolescenceData.lotes_criticos_7_dias.slice(0, 3).map((lote) => (
                 <div key={lote.lote_id} className="p-3 bg-red-50 border border-red-200 rounded-2xl flex flex-col gap-1 text-xs">
@@ -268,7 +313,7 @@ export const DashboardView = () => {
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
             <h2 className="text-sm font-extrabold text-stone-900">
-              Alertas de Reorden de Mercadería (POR = d · L + SS)
+              Alertas de Reorden de Mercadería (POR = d · L + SS) y Stock Crítico (≤ 5)
             </h2>
           </div>
           <span className="text-xs text-stone-500 font-medium">
@@ -292,12 +337,19 @@ export const DashboardView = () => {
             </thead>
             <tbody className="divide-y divide-stone-100 font-medium">
               {reorderData?.alertas_activas?.map((row, idx) => (
-                <tr key={idx} className="hover:bg-stone-50">
+                <tr key={idx} className={Number(row.stock_actual) <= 5 ? 'bg-red-50/70' : 'hover:bg-stone-50'}>
                   <td className="py-3 px-3">
-                    <div className="font-bold text-stone-900">{row.producto_nombre}</div>
+                    <div className="font-bold text-stone-900 flex items-center gap-1.5">
+                      <span>{row.producto_nombre}</span>
+                      {Number(row.stock_actual) <= 5 && (
+                        <span className="px-1.5 py-0.2 bg-red-600 text-white text-[9px] font-black rounded uppercase">
+                          ALERTA ≤ 5
+                        </span>
+                      )}
+                    </div>
                     <div className="text-[10px] text-stone-400 font-mono">{row.codigo_sku}</div>
                   </td>
-                  <td className="py-3 px-3 font-bold text-stone-900">{row.stock_actual}</td>
+                  <td className="py-3 px-3 font-extrabold text-stone-900">{row.stock_actual}</td>
                   <td className="py-3 px-3">{row.demanda_diaria_promedio} un./día</td>
                   <td className="py-3 px-3">{row.lead_time_dias} días</td>
                   <td className="py-3 px-3">{row.stock_seguridad}</td>

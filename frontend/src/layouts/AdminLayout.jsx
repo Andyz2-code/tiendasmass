@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranch } from '../context/BranchContext';
 import { AccessibilityPanel } from '../components/AccessibilityPanel';
+import api from '../services/api';
 import {
   LayoutDashboard,
   Boxes,
@@ -17,7 +18,10 @@ import {
   Building2,
   Menu,
   X,
-  ExternalLink
+  ExternalLink,
+  Users,
+  Bell,
+  AlertTriangle
 } from 'lucide-react';
 
 export const AdminLayout = () => {
@@ -30,6 +34,10 @@ export const AdminLayout = () => {
   const [loginPass, setLoginPass] = useState('123456');
   const [loginError, setLoginError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
+
+  // Requerimiento 3: Estado de Alertas de Stock Bajo (<= 5 unidades)
+  const [lowStockAlerts, setLowStockAlerts] = useState([]);
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
 
   // 1. RESTRICCIÓN OBLIGATORIA: Si el usuario es un Cliente, denegar acceso y redirigir a la tienda
   if (user && (isClient || user.rol_nombre === 'Cliente' || user.tipo_usuario === 'cliente')) {
@@ -45,6 +53,22 @@ export const AdminLayout = () => {
       }
     }
   }, [isSupervisor, user, sucursales]);
+
+  // Consultar alertas de stock bajo (<= 5 unidades) en la sucursal
+  useEffect(() => {
+    if (!user || !token || !selectedBranch?.id) return;
+    const fetchLowStock = () => {
+      api
+        .get(`/inventarios/low-stock-alerts?sucursal_id=${selectedBranch.id}`)
+        .then((res) => {
+          setLowStockAlerts(res.data?.alertas || []);
+        })
+        .catch(() => {});
+    };
+    fetchLowStock();
+    const interval = setInterval(fetchLowStock, 15000);
+    return () => clearInterval(interval);
+  }, [user, token, selectedBranch?.id]);
 
   // 2. Si no hay sesión o no es personal autorizado, mostrar login exclusivo interno
   if (!user || !token || (!isAdmin && !isSupervisor)) {
@@ -153,14 +177,15 @@ export const AdminLayout = () => {
 
   const navItems = [
     { to: '/admin/reportes-generales', icon: TrendingUp, label: 'Reportes Generales', badge: 'Principal' },
-    { to: '/admin/productos', icon: Package, label: 'Catálogo & Edición de Productos', badge: 'Nuevo' },
-    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard ABC & POR' },
+    { to: '/admin/productos', icon: Package, label: 'Catálogo & Edición de Productos' },
+    { to: '/admin/dashboard', icon: LayoutDashboard, label: 'Dashboard ABC & POR', badge: lowStockAlerts.length > 0 ? `⚠️ ${lowStockAlerts.length}` : null },
     { to: '/admin/banners', icon: Image, label: 'Banners & Promociones' },
     { to: '/admin/inventario', icon: Boxes, label: 'Inventario & Kardex' },
     { to: '/admin/almacen', icon: PackageCheck, label: 'Almacén & Picking (PEPS)' },
     { to: '/admin/conteos', icon: ClipboardList, label: 'Conteos Cíclicos ABC' },
     { to: '/admin/delivery', icon: Truck, label: 'Tracking & Deliveries' },
-    { to: '/admin/reportes', icon: BarChart3, label: 'Mermas & Reportes NIC 2' }
+    { to: '/admin/reportes', icon: BarChart3, label: 'Mermas & Desmedros NIC 2', badge: 'Bajas' },
+    ...(isAdmin ? [{ to: '/admin/usuarios', icon: Users, label: 'Usuarios & Supervisores', badge: 'Admin' }] : [])
   ];
 
   return (
@@ -274,31 +299,74 @@ export const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* Header Móvil */}
-      <div className="md:hidden bg-stone-900 text-white p-4 flex items-center justify-between border-b border-stone-800">
-        <div className="flex items-center gap-2">
-          <div className="bg-mass-yellow p-1 rounded-lg border border-amber-300 flex items-center justify-center shrink-0">
-            <img
-              src="/tiendasmass/frontend/assets/logo-mass-isotipo.png"
-              alt="Tiendas Mass"
-              className="h-6 w-auto object-contain select-none"
-              onError={(e) => { e.target.src = '/tiendasmass/frontend/assets/logo-mass.png'; }}
-            />
+      {/* Área de Trabajo y Topbar con Alerta de Stock Bajo <= 5 unidades */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <header className="h-16 bg-white border-b border-stone-200 flex items-center justify-between px-6 z-20">
+          <div className="font-bold text-stone-800 text-xs sm:text-sm flex items-center gap-2">
+            <span>🏢 {selectedBranch?.nombre || 'Huancayo'}</span>
+            <span className="text-stone-300">•</span>
+            <span className="text-stone-500">{user?.rol_nombre}</span>
           </div>
-          <span className="font-extrabold text-sm">TIENDAS MASS</span>
-        </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-2 rounded-lg bg-stone-800 text-stone-300"
-        >
-          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      </div>
 
-      {/* Contenido Principal */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
-        <Outlet />
-      </main>
+          {/* Campana / Disparador de Alertas de Stock Bajo (<= 5 unidades) - Req #3 */}
+          <div className="relative">
+            <button
+              onClick={() => setIsAlertOpen(!isAlertOpen)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-extrabold border transition ${
+                lowStockAlerts.length > 0
+                  ? 'bg-red-600 text-white border-red-700 animate-pulse shadow-md'
+                  : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+              }`}
+            >
+              <Bell className="w-4 h-4" />
+              <span>Alertas Stock ≤ 5</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                lowStockAlerts.length > 0 ? 'bg-white text-red-700' : 'bg-stone-200 text-stone-700'
+              }`}>
+                {lowStockAlerts.length}
+              </span>
+            </button>
+
+            {isAlertOpen && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 p-4 space-y-3 text-xs">
+                <div className="flex items-center justify-between pb-2 border-b">
+                  <span className="font-extrabold text-stone-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-red-600" />
+                    <span>Disparador de Stock Bajo (≤ 5 un.)</span>
+                  </span>
+                  <button onClick={() => setIsAlertOpen(false)} className="font-bold text-stone-400">✕</button>
+                </div>
+
+                {lowStockAlerts.length > 0 ? (
+                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scroll">
+                    {lowStockAlerts.map((al) => (
+                      <div key={`${al.sucursal_id}-${al.producto_id}`} className="p-2.5 bg-red-50 border border-red-200 rounded-xl flex justify-between items-center">
+                        <div>
+                          <div className="font-extrabold text-red-950">{al.producto_nombre}</div>
+                          <div className="text-[10px] text-red-700 font-mono">{al.codigo_sku} • {al.sucursal_nombre}</div>
+                        </div>
+                        <span className="px-2 py-1 bg-red-600 text-white font-black rounded-lg text-[10px] shrink-0">
+                          {al.stock_actual} unid.
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-stone-400 font-medium">
+                    ✓ Ningún producto tiene 5 o menos unidades en esta sucursal.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Contenido Principal */}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto max-w-7xl w-full mx-auto">
+          <Outlet />
+        </main>
+      </div>
 
       {/* Panel Flotante de Accesibilidad */}
       <AccessibilityPanel />

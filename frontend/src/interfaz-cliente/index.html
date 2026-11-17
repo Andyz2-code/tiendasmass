@@ -616,13 +616,15 @@
                 branch={selectedBranch}
                 cart={cart}
                 client={client}
+                onClientLogged={(cli, tok) => {
+                  setClient(cli);
+                  localStorage.setItem('mass_client_user', JSON.stringify(cli));
+                  localStorage.setItem('mass_client_token', tok);
+                }}
                 onClearCart={() => setCart([])}
                 onBack={() => setView('catalogo')}
                 onOrderPlaced={(order) => {
                   if (order.tipo_entrega === 'RETIRO_TIENDA') {
-                    // Para Retiro en Tienda se confirma y se muestra el agradecimiento directo
-                    api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' }).catch(() => {});
-                    order.estado_pedido = 'ENTREGADO';
                     setThankYouInfo({ order, tipoEntrega: 'RETIRO_TIENDA' });
                     setIsThankYouOpen(true);
                   } else {
@@ -1955,11 +1957,38 @@ return (
     }
 
     // ==========================================
-    // 2. CHECKOUT CLIENTE CON DIRECCIÓN AUTOCOMPLETADA
+    // 2. CHECKOUT CLIENTE CON RECOJO EN TIENDA (VALIDACIÓN DE STOCK) Y FLUJO POST-PAGO (GUEST VS LOGIN)
     // ==========================================
-    function CheckoutCliente({ branch, cart, client, onClearCart, onBack, onOrderPlaced }) {
+    function CheckoutCliente({ branch, cart, client, onClientLogged, onClearCart, onBack, onOrderPlaced }) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const tomorrowObj = new Date();
+      tomorrowObj.setDate(tomorrowObj.getDate() + 1);
+      const tomorrowStr = tomorrowObj.toISOString().split('T')[0];
+
       const [tipoEntrega, setTipoEntrega] = useState('DELIVERY');
       const [metodoPago, setMetodoPago] = useState('YAPE');
+
+      // Requerimiento 1: Estado de Validación de Stock para Recojo en Tienda
+      const [pickupValidation, setPickupValidation] = useState({
+        loading: false,
+        mismo_dia_disponible: true,
+        bloqueo_mismo_dia: false,
+        fecha_minima_recojo: todayStr,
+        productos_sin_stock: [],
+        mensaje: ''
+      });
+      const [fechaRecojo, setFechaRecojo] = useState(todayStr);
+
+      // Requerimiento 2: Flujo Post-Pago (Opciones antes de finalizar: Iniciar Sesión vs Continuar como Invitado)
+      const [validatedOrder, setValidatedOrder] = useState(null);
+      const [postPayMode, setPostPayMode] = useState(client ? 'LOGIN' : 'INVITADO'); // 'LOGIN' | 'INVITADO'
+      const [guestPhone, setGuestPhone] = useState(client?.telefono || '');
+      const [guestEmail, setGuestEmail] = useState(client?.email || '');
+      const [loginEmail, setLoginEmail] = useState('juan.perez@gmail.com');
+      const [loginPassword, setLoginPassword] = useState('123456');
+      const [postPayLoading, setPostPayLoading] = useState(false);
+      const [postPayError, setPostPayError] = useState('');
+      const [boletaEmitida, setBoletaEmitida] = useState(null);
 
       // Toma automáticamente la dirección que guardó el cliente al registrarse o en su perfil
       const [direccion, setDireccion] = useState(() => client?.direccion_completa || 'Jr. Puno 345, Huancayo');
@@ -1969,6 +1998,53 @@ return (
       const [distanceKm, setDistanceKm] = useState(0.8);
       const [isSubmitting, setIsSubmitting] = useState(false);
       const [error, setError] = useState('');
+
+      // Requerimiento 1: Validar stock en la sucursal seleccionada para habilitar o bloquear el mismo día
+      useEffect(() => {
+        if (!branch?.id || cart.length === 0) return;
+        setPickupValidation(prev => ({ ...prev, loading: true }));
+        api.post('/pedidos/validar-stock-recojo', {
+          sucursal_id: branch.id,
+          items: cart.map(i => ({ producto_id: i.producto.id, cantidad: i.cantidad }))
+        }).then(res => {
+          const d = res.data;
+          setPickupValidation({
+            loading: false,
+            mismo_dia_disponible: d.mismo_dia_disponible,
+            bloqueo_mismo_dia: d.bloqueo_mismo_dia,
+            fecha_minima_recojo: d.fecha_minima_recojo,
+            productos_sin_stock: d.productos_sin_stock || [],
+            mensaje: d.mensaje
+          });
+          if (d.bloqueo_mismo_dia) {
+            setFechaRecojo(prev => (prev <= todayStr ? d.fecha_minima_recojo : prev));
+          } else {
+            setFechaRecojo(prev => (prev < todayStr ? todayStr : prev));
+          }
+        }).catch(() => {
+          const faltantes = cart.filter(i => Number(i.producto.stock_actual ?? 99) < Number(i.cantidad));
+          const todosConStock = faltantes.length === 0;
+          const minDate = todosConStock ? todayStr : tomorrowStr;
+          setPickupValidation({
+            loading: false,
+            mismo_dia_disponible: todosConStock,
+            bloqueo_mismo_dia: !todosConStock,
+            fecha_minima_recojo: minDate,
+            productos_sin_stock: faltantes.map(f => ({
+              producto_id: f.producto.id,
+              nombre: f.producto.nombre,
+              cantidad_solicitada: f.cantidad,
+              stock_sucursal: Number(f.producto.stock_actual ?? 0)
+            })),
+            mensaje: todosConStock
+              ? '¡Stock completo en esta sucursal! Puede seleccionar recojo el mismo día.'
+              : `Falta stock en esta sucursal. Día actual bloqueado; seleccione a partir del ${tomorrowStr}.`
+          });
+          if (!todosConStock) {
+            setFechaRecojo(prev => (prev <= todayStr ? tomorrowStr : prev));
+          }
+        });
+      }, [branch?.id, cart, tipoEntrega]);
 
       const presets = [
         { name: 'Mi Domicilio Registrado', dist: 0.8, dir: client?.direccion_completa || 'Jr. Puno 345, Huancayo', lat: -12.0691, lng: -75.2092 },
@@ -1988,6 +2064,12 @@ return (
         if (tipoEntrega === 'DELIVERY' && !inCoverage) {
           return setError(`Ubicación fuera del radio de entrega (${distanceKm} km > ${branch?.radio_cobertura_km} km)`);
         }
+        if (tipoEntrega === 'RETIRO_TIENDA') {
+          if (!fechaRecojo) return setError('Debe seleccionar una fecha de recojo en tienda.');
+          if (pickupValidation.bloqueo_mismo_dia && fechaRecojo <= todayStr) {
+            return setError(`El recojo hoy (${todayStr}) está bloqueado por falta de stock en la sucursal. Seleccione a partir de mañana (${pickupValidation.fecha_minima_recojo}).`);
+          }
+        }
 
         setIsSubmitting(true);
         setError('');
@@ -1996,6 +2078,7 @@ return (
             sucursal_id: branch.id,
             cliente_id: client?.id || 1,
             tipo_entrega: tipoEntrega,
+            fecha_recojo: tipoEntrega === 'RETIRO_TIENDA' ? fechaRecojo : null,
             metodo_pago: metodoPago,
             items: cart.map(i => ({ producto_id: i.producto.id, cantidad: i.cantidad })),
             delivery_info: tipoEntrega === 'DELIVERY' ? {
@@ -2007,13 +2090,251 @@ return (
           };
           const res = await api.post('/pedidos', payload);
           onClearCart();
-          onOrderPlaced(res.data);
+          // Requerimiento 2: Mostrar las dos opciones post-pago antes de finalizar
+          setValidatedOrder(res.data);
         } catch (err) {
           setError(err.message);
         } finally {
           setIsSubmitting(false);
         }
       };
+
+      // Requerimiento 2: Disparar evento automático de Boleta Electrónica y Seguimiento tras capturar Login o Invitado
+      const handlePostPaymentSubmit = async (e) => {
+        e.preventDefault();
+        setPostPayError('');
+        setPostPayLoading(true);
+        try {
+          let activeClient = client;
+          let targetEmail = guestEmail;
+          let targetPhone = guestPhone;
+
+          if (postPayMode === 'LOGIN' && !activeClient) {
+            const loginRes = await api.post('/auth/login-client', { email: loginEmail, password: loginPassword });
+            activeClient = loginRes.data.client || loginRes.data.user;
+            if (onClientLogged) onClientLogged(activeClient, loginRes.data.token);
+            targetEmail = activeClient.email;
+            targetPhone = activeClient.telefono;
+          } else if (postPayMode === 'LOGIN' && activeClient) {
+            targetEmail = activeClient.email;
+            targetPhone = activeClient.telefono || guestPhone;
+          }
+
+          const orderId = validatedOrder.id || validatedOrder.pedido_id;
+          const notifRes = await api.post(`/pedidos/${orderId}/notificar-boleta`, {
+            modo: postPayMode,
+            cliente_id: activeClient?.id || null,
+            email: targetEmail,
+            telefono: targetPhone
+          });
+          setBoletaEmitida(notifRes.data);
+        } catch (err) {
+          setPostPayError(err.message);
+        } finally {
+          setPostPayLoading(false);
+        }
+      };
+
+      // Vista de Boleta Electrónica y Enlace de Seguimiento una vez disparado el evento automático
+      if (validatedOrder && boletaEmitida) {
+        const bol = boletaEmitida.boleta_electronica;
+        const seg = boletaEmitida.seguimiento;
+        return (
+          <div className="max-w-3xl mx-auto bg-white p-6 sm:p-8 rounded-3xl border-2 border-emerald-300 shadow-2xl space-y-6 text-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b">
+              <div className="space-y-1">
+                <span className="px-3 py-1 bg-emerald-100 text-emerald-800 font-black rounded-full text-[10px] uppercase">
+                  ✓ Evento Automático Post-Pago Ejecutado
+                </span>
+                <h2 className="text-xl font-black text-stone-900 pt-1">
+                  ¡Boleta Electrónica y Seguimiento Enviados!
+                </h2>
+                <p className="text-stone-600">{boletaEmitida.mensaje_confirmacion}</p>
+              </div>
+              <button onClick={() => window.print()} className="px-4 py-2 bg-stone-900 text-white font-bold rounded-xl self-start">
+                🖨 Imprimir Boleta
+              </button>
+            </div>
+
+            <div className="p-5 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+              <div className="flex flex-col sm:flex-row justify-between gap-3 pb-3 border-b">
+                <div>
+                  <div className="font-black text-sm text-stone-900">{bol?.emisor?.razon_social}</div>
+                  <div className="text-stone-500">RUC: {bol?.emisor?.ruc} • {bol?.emisor?.sucursal}</div>
+                  <div className="text-stone-500">{bol?.emisor?.direccion}</div>
+                </div>
+                <div className="border-2 border-stone-900 bg-white px-4 py-2 rounded-xl text-center self-start">
+                  <div className="font-black text-[10px]">BOLETA DE VENTA ELECTRÓNICA</div>
+                  <div className="font-mono font-black text-sm text-mass-red">{bol?.comprobante?.serie_numero}</div>
+                  <div className="text-[10px] text-stone-400">Orden: {bol?.comprobante?.codigo_pedido}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                <div><span className="text-stone-500">Cliente / Modalidad:</span> <strong>{bol?.receptor?.nombre} ({bol?.receptor?.modalidad})</strong></div>
+                <div><span className="text-stone-500">Correo Destino:</span> <strong>{bol?.receptor?.email}</strong></div>
+                <div><span className="text-stone-500">Teléfono Notificado:</span> <strong>{bol?.receptor?.telefono}</strong></div>
+                <div>
+                  <span className="text-stone-500">Entrega:</span>{' '}
+                  <strong>{bol?.comprobante?.tipo_entrega} {bol?.comprobante?.fecha_recojo ? `(Recojo: ${bol.comprobante.fecha_recojo})` : ''}</strong>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t flex justify-end">
+                <div className="w-full sm:w-60 space-y-1">
+                  <div className="flex justify-between text-stone-500"><span>Op. Gravadas:</span><span>S/. {parseFloat(bol?.totales?.op_gravadas || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>IGV (18%):</span><span>S/. {parseFloat(bol?.totales?.igv_18 || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>Costo Envío:</span><span>S/. {parseFloat(bol?.totales?.costo_envio || 0).toFixed(2)}</span></div>
+                  <div className="flex justify-between font-black text-sm text-mass-red pt-1 border-t"><span>Importe Total:</span><span>S/. {parseFloat(bol?.totales?.importe_total || 0).toFixed(2)}</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="font-extrabold text-stone-900">📦 Enlace y Estados de Seguimiento de tu Compra</span>
+                <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border">{seg?.codigo_pedido}</span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border font-mono text-[11px] text-stone-600 break-all">
+                🔗 {seg?.enlace_seguimiento}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                {seg?.etapas?.map((et, idx) => (
+                  <div key={idx} className={`p-2.5 rounded-xl border text-center font-bold ${et.completado ? 'bg-emerald-100 border-emerald-300 text-emerald-900' : 'bg-white border-stone-200 text-stone-400'}`}>
+                    <div>{et.completado ? '✓' : '⏳'}</div>
+                    <div className="text-[10px] mt-0.5">{et.titulo}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => onOrderPlaced(validatedOrder)}
+                className="flex-1 py-3.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-2xl uppercase shadow"
+              >
+                {validatedOrder.tipo_entrega === 'DELIVERY' ? '🛵 Ir al Rastreo GPS en Vivo' : '🏬 Finalizar y Ver Confirmación de Recojo'}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Requerimiento 2: Paso Post-Pago (Opciones antes de finalizar: Iniciar Sesión o Continuar como Invitado)
+      if (validatedOrder && !boletaEmitida) {
+        return (
+          <div className="max-w-lg mx-auto bg-white p-6 sm:p-8 rounded-3xl border-2 border-amber-300 shadow-2xl space-y-5 text-xs">
+            <div className="text-center space-y-1.5">
+              <div className="w-14 h-14 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-2xl">
+                ✓
+              </div>
+              <span className="px-3 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[10px] uppercase">
+                Pago Validado ({validatedOrder.codigo_pedido})
+              </span>
+              <h2 className="text-lg sm:text-xl font-black text-stone-900 pt-1">
+                Opciones antes de finalizar tu compra
+              </h2>
+              <p className="text-stone-500">
+                Elige cómo continuar para enviarte automáticamente tu <strong>Boleta Electrónica</strong> y el <strong>enlace de seguimiento</strong> de tu pedido:
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 p-1.5 bg-stone-100 rounded-2xl font-extrabold">
+              <button
+                type="button"
+                onClick={() => setPostPayMode('INVITADO')}
+                className={`py-2.5 px-3 rounded-xl transition ${postPayMode === 'INVITADO' ? 'bg-mass-yellow text-stone-950 shadow' : 'text-stone-600'}`}
+              >
+                ⚡ Continuar como Invitado
+              </button>
+              <button
+                type="button"
+                onClick={() => setPostPayMode('LOGIN')}
+                className={`py-2.5 px-3 rounded-xl transition ${postPayMode === 'LOGIN' ? 'bg-mass-yellow text-stone-950 shadow' : 'text-stone-600'}`}
+              >
+                🔐 Iniciar Sesión
+              </button>
+            </div>
+
+            {postPayError && (
+              <div className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-xl font-bold">
+                {postPayError}
+              </div>
+            )}
+
+            <form onSubmit={handlePostPaymentSubmit} className="space-y-4">
+              {postPayMode === 'INVITADO' ? (
+                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                  <div className="font-bold text-stone-800">
+                    Continuar como invitado (solo número telefónico y correo electrónico):
+                  </div>
+                  <div>
+                    <label className="block font-bold text-stone-700 mb-1">📱 Número Telefónico *</label>
+                    <input
+                      type="tel"
+                      required
+                      value={guestPhone}
+                      onChange={e => setGuestPhone(e.target.value)}
+                      placeholder="Ej: 987654321"
+                      className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-stone-700 mb-1">✉️ Correo Electrónico *</label>
+                    <input
+                      type="email"
+                      required
+                      value={guestEmail}
+                      onChange={e => setGuestEmail(e.target.value)}
+                      placeholder="cliente@correo.com"
+                      className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                    />
+                  </div>
+                </div>
+              ) : client ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1.5">
+                  <div className="font-extrabold text-emerald-950">✓ Cuenta activa: {client.nombres} {client.apellidos}</div>
+                  <div className="text-[11px] text-emerald-800">
+                    Enviaremos tu boleta electrónica y el enlace de seguimiento a <strong>{client.email}</strong> y al teléfono <strong>{client.telefono}</strong>.
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 space-y-3">
+                  <div className="font-bold text-stone-800">Inicia sesión con tu cuenta existente:</div>
+                  <div>
+                    <label className="block font-bold text-stone-700 mb-1">Correo Electrónico *</label>
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={e => setLoginEmail(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-stone-700 mb-1">Contraseña *</label>
+                    <input
+                      type="password"
+                      required
+                      value={loginPassword}
+                      onChange={e => setLoginPassword(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl font-bold bg-white"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={postPayLoading}
+                className="w-full py-3.5 bg-mass-red hover:bg-red-700 text-white font-extrabold rounded-2xl uppercase shadow-lg transition"
+              >
+                {postPayLoading ? 'Enviando Boleta y Seguimiento...' : 'Enviar Boleta Electrónica y Ver Seguimiento ➔'}
+              </button>
+            </form>
+          </div>
+        );
+      }
 
       return (
         <div className="space-y-6">
@@ -2027,9 +2348,68 @@ return (
                 <h3 className="text-xs font-extrabold text-stone-900 uppercase">1. Modalidad de Entrega</h3>
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <button onClick={() => setTipoEntrega('DELIVERY')} className={`p-3 rounded-xl border font-bold ${tipoEntrega === 'DELIVERY' ? 'border-amber-400 bg-amber-50' : ''}`}>🛵 Delivery Express a Domicilio</button>
-                  <button onClick={() => setTipoEntrega('RETIRO_TIENDA')} className={`p-3 rounded-xl border font-bold ${tipoEntrega === 'RETIRO_TIENDA' ? 'border-amber-400 bg-amber-50' : ''}`}>🏬 Retiro en Tienda Mass</button>
+                  <button onClick={() => setTipoEntrega('RETIRO_TIENDA')} className={`p-3 rounded-xl border font-bold ${tipoEntrega === 'RETIRO_TIENDA' ? 'border-amber-400 bg-amber-50' : ''}`}>🏬 Recojo en Tienda Mass</button>
                 </div>
               </div>
+
+              {/* REQUERIMIENTO 1: Selector de Fecha de Recojo en Tienda con Condición y Bloqueo de Mismo Día */}
+              {tipoEntrega === 'RETIRO_TIENDA' && (
+                <div className="bg-white p-5 rounded-2xl border space-y-3 shadow-sm text-xs">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-extrabold text-stone-900 uppercase">2. Fecha de Recojo en Tienda y Validación de Stock</h3>
+                    <span className="text-[10px] font-bold bg-stone-100 px-2.5 py-1 rounded-lg">📍 {branch?.nombre}</span>
+                  </div>
+
+                  {pickupValidation.mismo_dia_disponible ? (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900">
+                      <div className="font-extrabold">✓ ¡Recojo en el Mismo Día Habilitado ({todayStr})!</div>
+                      <div className="text-[11px] text-emerald-700 mt-0.5">
+                        La sucursal <strong>{branch?.nombre}</strong> tiene stock suficiente de TODOS los productos de tu carrito.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl text-amber-950 space-y-2">
+                      <div className="font-extrabold text-mass-red uppercase text-[11px]">
+                        🔒 Día Actual ({todayStr}) Bloqueado por Falta de Stock en Sucursal
+                      </div>
+                      <p className="text-[11px] text-stone-700">
+                        Falta stock de al menos un producto en <strong>{branch?.nombre}</strong>. Solo se permite seleccionar a partir del día siguiente (<strong>{pickupValidation.fecha_minima_recojo}</strong>) para realizar el traslado de inventario.
+                      </p>
+                      {pickupValidation.productos_sin_stock.length > 0 && (
+                        <div className="bg-white p-2 rounded-lg border border-amber-200 space-y-1 text-[11px]">
+                          {pickupValidation.productos_sin_stock.map(p => (
+                            <div key={p.producto_id} className="flex justify-between">
+                              <span className="font-semibold">• {p.nombre}</span>
+                              <span className="text-red-600 font-bold">Solicitado: {p.cantidad_solicitada} | Stock en tienda: {p.stock_sucursal}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-700 mb-1">
+                      Fecha de Recojo {pickupValidation.bloqueo_mismo_dia ? `(Mínimo permitido: ${pickupValidation.fecha_minima_recojo})` : `(Disponible desde hoy: ${todayStr})`}:
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      min={pickupValidation.fecha_minima_recojo}
+                      value={fechaRecojo}
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (pickupValidation.bloqueo_mismo_dia && val <= todayStr) {
+                          setFechaRecojo(pickupValidation.fecha_minima_recojo);
+                        } else {
+                          setFechaRecojo(val);
+                        }
+                      }}
+                      className="w-full p-2.5 border-2 border-stone-300 rounded-xl font-extrabold text-stone-900"
+                    />
+                  </div>
+                </div>
+              )}
 
               {tipoEntrega === 'DELIVERY' && (
                 <div className="bg-white p-5 rounded-2xl border space-y-3 shadow-sm">
@@ -2113,6 +2493,9 @@ return (
                   <div className="flex justify-between text-stone-500"><span>Subtotal (sin IGV):</span><span>S/. {(totalMercaderia / 1.18).toFixed(2)}</span></div>
                   <div className="flex justify-between text-stone-500"><span>IGV (18% Perú):</span><span>S/. {(totalMercaderia - (totalMercaderia / 1.18)).toFixed(2)}</span></div>
                   <div className="flex justify-between text-stone-500"><span>Costo Envío:</span><span>S/. {costoEnvio.toFixed(2)}</span></div>
+                  {tipoEntrega === 'RETIRO_TIENDA' && (
+                    <div className="flex justify-between text-amber-800 font-bold"><span>Fecha de Recojo:</span><span>{fechaRecojo}</span></div>
+                  )}
                   <div className="flex justify-between text-base font-extrabold pt-2 border-t text-mass-red">
                     <span>Total a Pagar:</span><span>S/. {totalFinal.toFixed(2)}</span>
                   </div>
@@ -2122,7 +2505,7 @@ return (
                   disabled={isSubmitting || (tipoEntrega === 'DELIVERY' && !inCoverage)}
                   className="w-full py-3.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-2xl text-xs uppercase shadow transition disabled:opacity-40"
                 >
-                  {isSubmitting ? 'Procesando Venta PEPS...' : 'Confirmar Pedido y Pagar'}
+                  {isSubmitting ? 'Validando Pago...' : 'Validar Pago y Continuar'}
                 </button>
               </div>
             </div>

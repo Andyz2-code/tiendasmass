@@ -3,6 +3,7 @@ namespace App\Services;
 
 use App\Helpers\Database;
 use PDO;
+use Exception;
 
 class ReorderCalculationService {
     private PDO $db;
@@ -12,15 +13,119 @@ class ReorderCalculationService {
     }
 
     /**
-     * Calcula y evalúa el Punto de Reorden (POR) para todos los productos de una sucursal.
+     * REQUERIMIENTO 3: Sistema de Alertas de Stock Bajo (<= 5 unidades).
+     * Obtiene y sincroniza todas las alertas de productos cuyo inventario en una sucursal
+     * haya llegado exactamente o sea menor a 5 unidades.
+     */
+    public function getLowStockAlerts(?int $sucursalId = null, int $umbral = 5): array {
+        try {
+            $this->db->exec("
+                CREATE TABLE IF NOT EXISTS `alertas_stock_bajo` (
+                  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                  `sucursal_id` INT UNSIGNED NOT NULL,
+                  `producto_id` INT UNSIGNED NOT NULL,
+                  `stock_actual` INT NOT NULL,
+                  `umbral_alerta` INT NOT NULL DEFAULT 5,
+                  `nivel` ENUM('CRITICO', 'AGOTADO') NOT NULL DEFAULT 'CRITICO',
+                  `mensaje` VARCHAR(255) NOT NULL,
+                  `resuelta` TINYINT(1) NOT NULL DEFAULT 0,
+                  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                  UNIQUE KEY `uk_alerta_sucursal_producto` (`sucursal_id`, `producto_id`)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+            ");
+        } catch (Exception $e) {}
+
+        $where = "WHERE i.stock_actual <= :umbral AND p.estado = 1";
+        $params = [':umbral' => $umbral];
+
+        if ($sucursalId !== null && $sucursalId > 0) {
+            $where .= " AND i.sucursal_id = :sucursal_id";
+            $params[':sucursal_id'] = $sucursalId;
+        }
+
+        $sql = "SELECT i.id AS inventario_id,
+                       i.sucursal_id,
+                       s.nombre AS sucursal_nombre,
+                       s.codigo_tienda,
+                       i.producto_id,
+                       p.nombre AS producto_nombre,
+                       p.codigo_sku,
+                       p.codigo_barras,
+                       p.unidad_medida,
+                       p.precio_venta,
+                       p.costo_base,
+                       c.nombre AS categoria_nombre,
+                       i.stock_actual,
+                       i.stock_minimo,
+                       i.punto_reorden,
+                       i.updated_at
+                FROM inventarios i
+                JOIN productos p ON i.producto_id = p.id
+                JOIN categorias c ON p.categoria_id = c.id
+                JOIN sucursales s ON i.sucursal_id = s.id
+                {$where}
+                ORDER BY i.stock_actual ASC, p.nombre ASC";
+
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        // Sincronizar con la tabla de alertas disparadas
+        foreach ($items as &$item) {
+            $stock = (int)$item['stock_actual'];
+            $nivel = ($stock <= 0) ? 'AGOTADO' : 'CRITICO';
+            $mensaje = $stock <= 0
+                ? "¡PRODUCTO AGOTADO! '{$item['producto_nombre']}' tiene 0 unidades en {$item['sucursal_nombre']}."
+                : "¡ALERTA DE STOCK BAJO (<= 5)! '{$item['producto_nombre']}' tiene solo {$stock} unidades en {$item['sucursal_nombre']}.";
+
+            $item['nivel_alerta'] = $nivel;
+            $item['umbral_alerta'] = $umbral;
+            $item['mensaje_alerta'] = $mensaje;
+
+            try {
+                $syncStmt = $this->db->prepare("
+                    INSERT INTO alertas_stock_bajo (sucursal_id, producto_id, stock_actual, umbral_alerta, nivel, mensaje, resuelta)
+                    VALUES (:suc, :prod, :stock, :umbral, :nivel, :msg, 0)
+                    ON DUPLICATE KEY UPDATE
+                        stock_actual = :stock_u,
+                        nivel = :nivel_u,
+                        mensaje = :msg_u,
+                        resuelta = 0
+                ");
+                $syncStmt->execute([
+                    ':suc'     => $item['sucursal_id'],
+                    ':prod'    => $item['producto_id'],
+                    ':stock'   => $stock,
+                    ':umbral'  => $umbral,
+                    ':nivel'   => $nivel,
+                    ':msg'     => $mensaje,
+                    ':stock_u' => $stock,
+                    ':nivel_u' => $nivel,
+                    ':msg_u'   => $mensaje
+                ]);
+            } catch (Exception $e) {}
+        }
+        unset($item);
+
+        return [
+            'umbral_configurado' => $umbral,
+            'total_alertas'      => count($items),
+            'agotados_count'     => count(array_filter($items, fn($r) => (int)$r['stock_actual'] <= 0)),
+            'criticos_5_count'   => count(array_filter($items, fn($r) => (int)$r['stock_actual'] > 0 && (int)$r['stock_actual'] <= $umbral)),
+            'alertas'            => $items
+        ];
+    }
+
+    /**
+     * Calcula y evalúa el Punto de Reorden (POR) y las Alertas de Stock Bajo (<= 5 unidades)
+     * para todos los productos de una sucursal.
      * POR = (d * L) + SS
-     * 
-     * @param int $sucursalId
-     * @return array Lista de alertas y estado de inventario
      */
     public function getReorderAlerts(int $sucursalId): array {
         $sql = "SELECT i.id AS inventario_id,
                        i.sucursal_id,
+                       s.nombre AS sucursal_nombre,
                        i.producto_id,
                        p.nombre AS producto_nombre,
                        p.codigo_sku,
@@ -38,6 +143,7 @@ class ReorderCalculationService {
                 FROM inventarios i
                 JOIN productos p ON i.producto_id = p.id
                 JOIN categorias c ON p.categoria_id = c.id
+                JOIN sucursales s ON i.sucursal_id = s.id
                 WHERE i.sucursal_id = :sucursal_id
                 ORDER BY i.stock_actual ASC";
 
@@ -46,11 +152,13 @@ class ReorderCalculationService {
         $items = $stmt->fetchAll();
 
         $alertas = [];
+        $alertasStockBajo5 = [];
         $resumen = [
-            'total_productos' => count($items),
-            'criticos'        => 0, // Stock <= SS
-            'en_reorden'      => 0, // SS < Stock <= POR
-            'optimos'         => 0  // Stock > POR
+            'total_productos'      => count($items),
+            'stock_bajo_5'         => 0, // Stock <= 5 unidades (Requerimiento 3)
+            'criticos'             => 0, // Stock <= SS
+            'en_reorden'           => 0, // SS < Stock <= POR
+            'optimos'              => 0  // Stock > POR
         ];
 
         foreach ($items as &$item) {
@@ -62,9 +170,15 @@ class ReorderCalculationService {
             // Cálculo dinámico del POR
             $porCalculado = (int)ceil(($d * $L) + $ss);
             $item['por_calculado'] = $porCalculado;
+            $item['alerta_stock_bajo_5'] = ($stockActual <= 5);
 
-            if ($stockActual <= $ss) {
-                $item['estado_stock'] = 'CRITICO';
+            if ($stockActual <= 5) {
+                $resumen['stock_bajo_5']++;
+                $alertasStockBajo5[] = $item;
+            }
+
+            if ($stockActual <= 5 || $stockActual <= $ss) {
+                $item['estado_stock'] = $stockActual <= 5 ? 'STOCK_BAJO_CRITICO_5' : 'CRITICO';
                 $item['color_badge']  = 'danger';
                 $resumen['criticos']++;
                 $alertas[] = $item;
@@ -86,19 +200,16 @@ class ReorderCalculationService {
         unset($item);
 
         return [
-            'resumen'          => $resumen,
-            'alertas_activas'  => $alertas,
-            'inventario_total' => $items
+            'resumen'              => $resumen,
+            'alertas_stock_bajo_5' => $alertasStockBajo5,
+            'alertas_activas'      => $alertas,
+            'inventario_total'     => $items
         ];
     }
 
     /**
      * Módulo de Consumo Responsable:
      * Calcula el Índice de Obsolescencia de Inventario (IOI) y alerta sobre lotes próximos a vencer.
-     * IOI = (Unidades en Riesgo de Caducidad / Stock Total) * 100
-     * 
-     * @param int $sucursalId
-     * @return array Lotes en riesgo a 30, 15 y 7 días con sugerencia de descuento VNR (NIC 2)
      */
     public function getObsolescenceAndExpiryReport(int $sucursalId): array {
         $sql = "SELECT l.id AS lote_id,
@@ -172,14 +283,14 @@ class ReorderCalculationService {
             'resumen' => [
                 'stock_total_sucursal' => $stockTotalSucursal,
                 'unidades_en_riesgo'   => $unidadesEnRiesgo,
-                'indice_obsolescencia' => $ioi, // IOI %
+                'indice_obsolescencia' => $ioi,
                 'total_lotes_7_dias'   => count($lotesRiesgo7Dias),
                 'total_lotes_15_dias'  => count($lotesRiesgo15Dias),
                 'total_lotes_30_dias'  => count($lotesRiesgo30Dias)
             ],
-            'lotes_criticos_7_dias'   => $lotesRiesgo7Dias,
-            'lotes_alerta_15_dias'    => $lotesRiesgo15Dias,
-            'lotes_preventivo_30_dias'=> $lotesRiesgo30Dias
+            'lotes_criticos_7_dias'    => $lotesRiesgo7Dias,
+            'lotes_alerta_15_dias'     => $lotesRiesgo15Dias,
+            'lotes_preventivo_30_dias' => $lotesRiesgo30Dias
         ];
     }
 }

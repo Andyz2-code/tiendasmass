@@ -22,6 +22,7 @@ import { ReportesView } from './interfaz-administrador/reportes/estadisticas';
 import { BannerAdminView } from './interfaz-administrador/banners/banners-admin';
 import { ReportesGeneralesView } from './interfaz-administrador/reportes/reportes-generales';
 import { ProductosAdminView } from './interfaz-administrador/productos/productos-admin';
+import { UsuariosAdminView } from './interfaz-administrador/usuarios/usuarios-admin';
 
 export default function App() {
   return (
@@ -48,6 +49,7 @@ export default function App() {
                 <Route path="delivery" element={<DeliveryTrackingView />} />
                 <Route path="reportes" element={<ReportesView />} />
                 <Route path="banners" element={<BannerAdminView />} />
+                <Route path="usuarios" element={<UsuariosAdminView />} />
               </Route>
 
               {/* Redirección por defecto */}
