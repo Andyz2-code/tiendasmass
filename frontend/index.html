@@ -1,0 +1,2671 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiendas Mass - Tienda Virtual | Canasta Básica de Ahorro</title>
+  <link rel="icon" type="image/svg+xml" href="https://upload.wikimedia.org/wikipedia/commons/4/4b/Mass_logo.svg">
+  <!-- Fuentes e Iconos -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Módulos de Accesibilidad y Estilos -->
+  <link rel="stylesheet" href="css/accessibility.css">
+  <link rel="stylesheet" href="css/logo.css">
+  <script src="js/accessibility.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mass: {
+              yellow: '#FDCB02',
+              red: '#E30613',
+              dark: '#1C1917',
+              gray: '#F5F5F4'
+            }
+          },
+          fontFamily: { sans: ['"Plus Jakarta Sans"', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  </style>
+</head>
+<body class="bg-stone-100 text-stone-900 antialiased min-h-screen">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+    const API_BASE = 'http://localhost/tiendasmass/backend/public/api';
+
+    const api = axios.create({
+      baseURL: API_BASE,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    api.interceptors.request.use((config) => {
+      const token = localStorage.getItem('mass_client_token');
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    });
+
+    api.interceptors.response.use(
+      (res) => res.data,
+      (err) => Promise.reject(new Error(err.response?.data?.message || err.message || 'Error en el servidor'))
+    );
+
+    function PortalCliente() {
+      // Vistas disponibles: 'catalogo' | 'checkout' | 'mis_compras' | 'rastreo_delivery'
+      const [view, setView] = useState('catalogo');
+      const [sucursales, setSucursales] = useState([]);
+      const [selectedBranch, setSelectedBranch] = useState(null);
+      const [cart, setCart] = useState(() => {
+        const saved = JSON.parse(localStorage.getItem('mass_client_cart') || '[]');
+        if (saved && saved.length > 0) return saved;
+        return [{
+          producto: {
+            id: 2,
+            nombre: "Aceite Vegetal Primor Clásico 900 ml",
+            codigo_sku: "SKU-ACE-002",
+            precio_venta: "8.50",
+            imagen_url: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=300"
+          },
+          cantidad: 1
+        }];
+      });
+      const [client, setClient] = useState(() => JSON.parse(localStorage.getItem('mass_client_user') || 'null'));
+      const [trackingOrder, setTrackingOrder] = useState(null); // Pedido activo para rastrear
+      const [isCartOpen, setIsCartOpen] = useState(() => new URLSearchParams(window.location.search).get('cart') === 'open');
+      const [isLoginOpen, setIsLoginOpen] = useState(false);
+      const [isProfileOpen, setIsProfileOpen] = useState(false);
+      const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+      const [isThankYouOpen, setIsThankYouOpen] = useState(false);
+      const [thankYouInfo, setThankYouInfo] = useState(null);
+      const [clientOrdersCount, setClientOrdersCount] = useState(0);
+
+      // Estados de Búsqueda y Categorías Mass Online
+      const [categorias, setCategorias] = useState([]);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [selectedCategory, setSelectedCategory] = useState(null);
+      const [isOffersOnly, setIsOffersOnly] = useState(false);
+      const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
+      const [favorites, setFavorites] = useState(() => JSON.parse(localStorage.getItem('mass_client_favorites') || '[]'));
+      const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
+
+      useEffect(() => {
+        api.get('/sucursales').then((res) => {
+          const list = res.data || [];
+          setSucursales(list);
+          if (list.length > 0) {
+            const saved = JSON.parse(localStorage.getItem('mass_selected_branch') || 'null');
+            const initial = list.find(s => s.id === saved?.id) || list[0];
+            setSelectedBranch(initial);
+          }
+        }).catch(console.error);
+
+        api.get('/categorias').then((res) => {
+          setCategorias(res.data || []);
+        }).catch(console.error);
+      }, []);
+
+      const toggleFavorite = (productId) => {
+        setFavorites(prev => {
+          const next = prev.includes(productId) ? prev.filter(id => id !== productId) : [...prev, productId];
+          localStorage.setItem('mass_client_favorites', JSON.stringify(next));
+          return next;
+        });
+      };
+
+      useEffect(() => {
+        localStorage.setItem('mass_client_cart', JSON.stringify(cart));
+      }, [cart]);
+
+      // Consultar cantidad de compras del cliente
+      useEffect(() => {
+        if (client?.id) {
+          api.get(`/pedidos?cliente_id=${client.id}`).then((res) => {
+            setClientOrdersCount((res.data || []).length);
+          }).catch(() => {});
+        }
+      }, [client, view]);
+
+      const handleSelectBranch = (bId) => {
+        const b = sucursales.find(s => s.id === parseInt(bId));
+        if (b) {
+          setSelectedBranch(b);
+          localStorage.setItem('mass_selected_branch', JSON.stringify(b));
+        }
+      };
+
+      const handleLogout = () => {
+        setClient(null);
+        localStorage.removeItem('mass_client_user');
+        localStorage.removeItem('mass_client_token');
+        setView('catalogo');
+      };
+
+      const addToCart = (producto, cant = 1) => {
+        setCart(prev => {
+          const exists = prev.find(i => i.producto.id === producto.id);
+          if (exists) {
+            return prev.map(i => i.producto.id === producto.id ? { ...i, cantidad: i.cantidad + cant } : i);
+          }
+          return [...prev, { producto, cantidad: cant }];
+        });
+      };
+
+      const updateCartQty = (id, cant) => {
+        if (cant <= 0) {
+          setCart(prev => prev.filter(i => i.producto.id !== id));
+        } else {
+          setCart(prev => prev.map(i => i.producto.id === id ? { ...i, cantidad: cant } : i));
+        }
+      };
+
+      const totalMercaderia = cart.reduce((acc, i) => acc + (parseFloat(i.producto.precio_venta) * i.cantidad), 0);
+      const totalItems = cart.reduce((acc, i) => acc + i.cantidad, 0);
+
+      return (
+        <div className="min-h-screen flex flex-col">
+          {/* Barra Superior con Anuncio Comercial */}
+          <div className="bg-mass-red text-white text-[11px] font-bold py-1.5 px-4 text-center">
+            <span>¡TIENDAS MASS HUANCAYO! Precios bajos todos los días y entregas express con control PEPS.</span>
+          </div>
+
+          {/* Header Principal Tiendas Mass (Color Amarillo y Logo Original) */}
+          <header className="bg-mass-yellow shadow-md sticky top-0 z-30">
+            <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
+              
+              {/* 1. Logo Original Mass (Caja Roja con letras Amarillas) */}
+              <div
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory(null);
+                  setIsOffersOnly(false);
+                  setIsFavoritesOnly(false);
+                  setView('catalogo');
+                }}
+                className="flex items-center cursor-pointer shrink-0 group py-1"
+                title="Ir al inicio de Tiendas Mass"
+              >
+                <img
+                  src="assets/images/logo-mass-oficial.png"
+                  alt="Tiendas Mass - Precios bajos, ¡cerca de ti!"
+                  className="h-9 sm:h-11 md:h-12 w-auto max-w-[200px] sm:max-w-[270px] md:max-w-[320px] object-contain select-none group-hover:scale-102 transition-transform"
+                  onError={(e) => { e.target.src = 'assets/logo-mass-oficial.png'; }}
+                />
+              </div>
+
+              {/* 2. Barra de Búsqueda Amplia y Espaciosa (Solucionada al 100%) */}
+              <div className="flex-1 max-w-2xl mx-2 sm:mx-4">
+                <div className="flex items-center bg-white rounded-full border-2 border-stone-200 focus-within:border-mass-red overflow-hidden shadow-sm transition">
+                  <span className="pl-4 pr-2 text-stone-400 text-sm">🔍</span>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      if (view !== 'catalogo') setView('catalogo');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') setView('catalogo');
+                    }}
+                    placeholder="Busca productos, marca..."
+                    className="w-full py-2.5 text-xs sm:text-sm text-stone-800 placeholder-stone-400 focus:outline-none bg-transparent font-medium"
+                  />
+                  {searchTerm && (
+                    <button
+                      onClick={() => setSearchTerm('')}
+                      className="px-2 text-stone-400 hover:text-stone-700 font-bold text-xs"
+                      title="Limpiar búsqueda"
+                    >
+                      ✕
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setView('catalogo')}
+                    className="bg-[#ff671f] hover:bg-[#ea580c] text-white font-black text-xs sm:text-sm px-6 py-2.5 transition shrink-0 uppercase tracking-wide"
+                  >
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Selector de Sucursal */}
+              <div className="hidden lg:flex items-center gap-2 bg-white/95 px-3 py-1.5 rounded-xl border border-stone-200 text-xs shadow-sm shrink-0">
+                <span className="text-mass-red font-bold">📍</span>
+                <div className="flex flex-col">
+                  <span className="text-[9px] uppercase font-bold text-stone-400 leading-tight">Comprando en:</span>
+                  <select
+                    value={selectedBranch?.id || ''}
+                    onChange={(e) => handleSelectBranch(e.target.value)}
+                    className="font-bold text-stone-900 bg-transparent focus:outline-none cursor-pointer text-xs"
+                  >
+                    {sucursales.map(s => (
+                      <option key={s.id} value={s.id}>{s.nombre} (Radio {s.radio_cobertura_km} km)</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* 4. Botones de Perfil (con Menú Desplegable de 3 Secciones) y Carrito */}
+              <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                {client ? (
+                  <div className="relative">
+                    {/* Botón Disparador del Perfil */}
+                    <button
+                      onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
+                      className="flex items-center gap-2 bg-white hover:bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200 text-xs shadow-sm transition"
+                    >
+                      <div className="w-7 h-7 rounded-full bg-mass-yellow flex items-center justify-center font-black text-stone-950 border border-amber-300 text-xs">
+                        {client.nombres ? client.nombres.charAt(0).toUpperCase() : '👤'}
+                      </div>
+                      <div className="text-left hidden sm:block">
+                        <div className="font-extrabold text-stone-900 leading-tight flex items-center gap-1">
+                          <span>{client.nombres}</span>
+                          <span className="text-[10px] text-stone-400">▼</span>
+                        </div>
+                        <div className="text-[9px] text-stone-500 font-medium truncate max-w-[120px]">
+                          {client.direccion_completa ? client.direccion_completa : 'Huancayo'}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Menú Desplegable con las 3 Secciones: Editar Perfil, Mis Compras y Cerrar Sesión */}
+                    {isProfileMenuOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsProfileMenuOpen(false)}
+                        ></div>
+                        <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-stone-200 z-50 overflow-hidden py-1">
+                          {/* Resumen del Perfil */}
+                          <div className="p-3 bg-stone-50 border-b border-stone-100">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-10 h-10 rounded-full bg-mass-yellow text-stone-950 font-black flex items-center justify-center text-sm shadow-sm border border-amber-300">
+                                {client.nombres ? client.nombres.charAt(0).toUpperCase() : 'C'}
+                              </div>
+                              <div className="overflow-hidden">
+                                <div className="font-extrabold text-xs text-stone-900 truncate">
+                                  {client.nombres} {client.apellidos}
+                                </div>
+                                <div className="text-[10px] text-stone-500 font-medium truncate">
+                                  {client.email}
+                                </div>
+                                <div className="text-[9px] font-bold text-amber-800 bg-amber-100 inline-block px-1.5 py-0.2 rounded mt-0.5">
+                                  {client.tipo_documento}: {client.numero_documento}
+                                </div>
+                              </div>
+                            </div>
+                            {client.direccion_completa && (
+                              <div className="mt-2 text-[10px] text-stone-600 bg-white p-1.5 rounded-lg border border-stone-200 flex items-start gap-1">
+                                <span className="text-mass-red">📍</span>
+                                <span className="truncate">{client.direccion_completa}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Las 3 Secciones Requeridas */}
+                          <div className="p-1.5 space-y-1 text-xs">
+                            {/* SECCIÓN 1: EDITAR PERFIL */}
+                            <button
+                              onClick={() => {
+                                setIsProfileMenuOpen(false);
+                                setIsProfileOpen(true);
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 text-stone-800 hover:bg-amber-50 rounded-xl font-bold transition text-left group"
+                            >
+                              <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-sm group-hover:scale-105 transition">
+                                ✏️
+                              </span>
+                              <div className="flex-1">
+                                <div className="font-bold text-stone-900 leading-tight">Editar Perfil</div>
+                                <div className="text-[10px] text-stone-500 font-normal">
+                                  Modificar dirección en Huancayo y datos
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* SECCIÓN 2: MIS COMPRAS */}
+                            <button
+                              onClick={() => {
+                                setIsProfileMenuOpen(false);
+                                setView('mis_compras');
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2.5 text-stone-800 hover:bg-amber-50 rounded-xl font-bold transition text-left group"
+                            >
+                              <span className="w-8 h-8 rounded-xl bg-red-100 text-mass-red flex items-center justify-center text-sm group-hover:scale-105 transition">
+                                📋
+                              </span>
+                              <div className="flex-1">
+                                <div className="font-bold text-stone-900 leading-tight flex items-center justify-between">
+                                  <span>Mis Compras</span>
+                                  {clientOrdersCount > 0 && (
+                                    <span className="bg-mass-red text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">
+                                      {clientOrdersCount}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-stone-500 font-normal">
+                                  Reporte de compras y rastreo GPS en vivo
+                                </div>
+                              </div>
+                            </button>
+
+                            {/* Divisor */}
+                            <div className="border-t border-stone-100 my-1"></div>
+
+                            {/* SECCIÓN 3: CERRAR SESIÓN */}
+                            <button
+                              onClick={() => {
+                                setIsProfileMenuOpen(false);
+                                handleLogout();
+                              }}
+                              className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-xl font-bold transition text-left group"
+                            >
+                              <span className="w-8 h-8 rounded-xl bg-red-50 text-red-600 flex items-center justify-center text-sm group-hover:scale-105 transition">
+                                🚪
+                              </span>
+                              <div className="flex-1">
+                                <div className="font-bold text-red-700 leading-tight">Cerrar Sesión</div>
+                                <div className="text-[10px] text-red-500/80 font-normal">
+                                  Salir de la cuenta de cliente
+                                </div>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setIsLoginOpen(true)}
+                    className="px-3.5 py-2 bg-white hover:bg-stone-50 text-stone-900 font-black rounded-xl text-xs border border-stone-300 shadow-sm transition"
+                  >
+                    Ingresar
+                  </button>
+                )}
+
+                {/* Botón Carrito */}
+                <button
+                  onClick={() => setIsCartOpen(true)}
+                  className="relative p-2.5 bg-mass-red hover:bg-red-700 text-white rounded-xl shadow-md transition flex items-center gap-2"
+                >
+                  <span className="font-black text-xs hidden sm:inline">S/. {totalMercaderia.toFixed(2)}</span>
+                  <span>🛒</span>
+                  {totalItems > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-stone-950 text-amber-300 text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow">
+                      {totalItems}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-Barra de Navegación: Agrandada, restaurada con categorías separadas perfectamente */}
+            <div className="bg-white border-t border-b border-amber-200/90 px-4 sm:px-8 py-3.5 shadow-sm min-h-[62px] flex items-center">
+              <div className="max-w-7xl mx-auto w-full flex items-center gap-3 sm:gap-4 overflow-x-auto custom-scroll py-1 text-xs sm:text-sm">
+                
+                {/* 1. Inicio */}
+                <button
+                  onClick={() => {
+                    setSelectedCategory(null);
+                    setIsOffersOnly(false);
+                    setIsFavoritesOnly(false);
+                    setSearchTerm('');
+                    setView('catalogo');
+                  }}
+                  className={`px-4.5 py-2 rounded-full font-bold text-xs sm:text-sm transition shrink-0 ${
+                    selectedCategory === null && !isOffersOnly && !isFavoritesOnly && !searchTerm
+                      ? 'bg-mass-red text-white shadow-xs font-black'
+                      : 'text-stone-700 hover:bg-stone-100 hover:text-stone-950'
+                  }`}
+                >
+                  Inicio
+                </button>
+
+                {/* 3. Ofertas Bomba */}
+                <button
+                  onClick={() => {
+                    setIsOffersOnly(!isOffersOnly);
+                    setSelectedCategory(null);
+                    setIsFavoritesOnly(false);
+                    setView('catalogo');
+                  }}
+                  className={`px-4.5 py-2 rounded-full font-black text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5 ${
+                    isOffersOnly
+                      ? 'bg-[#ff7332] text-white shadow-xs'
+                      : 'text-[#ff7332] hover:bg-orange-50'
+                  }`}
+                >
+                  <span>💥</span>
+                  <span>Ofertas Bomba</span>
+                </button>
+
+                {/* 3.1 Catálogo General */}
+                <button
+                  onClick={() => {
+                    setSelectedCategory(null);
+                    setIsOffersOnly(false);
+                    setIsFavoritesOnly(false);
+                    setSearchTerm('');
+                    setView('catalogo');
+                  }}
+                  className={`px-4.5 py-2 rounded-full font-extrabold text-xs sm:text-sm transition shrink-0 ${
+                    view === 'catalogo' && selectedCategory === null && !isOffersOnly && !isFavoritesOnly
+                      ? 'bg-mass-red text-white shadow-xs font-black'
+                      : 'text-stone-700 hover:bg-stone-100 hover:text-stone-950'
+                  }`}
+                >
+                  Catálogo
+                </button>
+
+                {/* 4. Favoritos ♡ */}
+                <button
+                  onClick={() => {
+                    setIsFavoritesOnly(!isFavoritesOnly);
+                    if (!isFavoritesOnly) {
+                      setSelectedCategory(null);
+                      setIsOffersOnly(false);
+                    }
+                    setView('catalogo');
+                  }}
+                  className={`px-4.5 py-2 rounded-full font-bold text-xs sm:text-sm transition shrink-0 flex items-center gap-1.5 ${
+                    isFavoritesOnly
+                      ? 'bg-red-50 text-mass-red shadow-xs font-black'
+                      : 'text-stone-700 hover:bg-stone-100 hover:text-stone-950'
+                  }`}
+                  title="Ver mis productos favoritos"
+                >
+                  <span>{isFavoritesOnly ? '❤️' : '♡'}</span>
+                  <span>Favoritos</span>
+                  {favorites.length > 0 && (
+                    <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${isFavoritesOnly ? 'bg-white text-red-600' : 'bg-red-500 text-white'}`}>
+                      {favorites.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Separador vertical limpio y perfectamente espaciado */}
+                <div className="h-6 w-px bg-stone-300 shrink-0 mx-2 sm:mx-3"></div>
+
+                {/* 5. Categorías dinámicas */}
+                {categorias.map(cat => {
+                  const isActive = selectedCategory === cat.id && !isOffersOnly && !isFavoritesOnly;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedCategory(selectedCategory === cat.id ? null : cat.id);
+                        setIsOffersOnly(false);
+                        setIsFavoritesOnly(false);
+                        setView('catalogo');
+                      }}
+                      className={`px-4.5 py-2 rounded-full font-bold text-xs sm:text-sm transition shrink-0 whitespace-nowrap shadow-2xs ${
+                        isActive
+                          ? 'bg-mass-red text-white font-black shadow-xs ring-2 ring-red-300'
+                          : 'bg-stone-50 hover:bg-stone-100 text-stone-700 hover:text-stone-950 border border-stone-200/80'
+                      }`}
+                    >
+                      {cat.nombre}
+                    </button>
+                  );
+                })}
+
+              </div>
+            </div>
+          </header>
+
+          {/* Contenido Principal */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6">
+            {view === 'catalogo' && (
+              <CatalogoCliente
+                branch={selectedBranch}
+                searchTerm={searchTerm}
+                selectedCategory={selectedCategory}
+                setSelectedCategory={setSelectedCategory}
+                isOffersOnly={isOffersOnly}
+                setIsOffersOnly={setIsOffersOnly}
+                isFavoritesOnly={isFavoritesOnly}
+                favorites={favorites}
+                onToggleFavorite={toggleFavorite}
+                onClearFilters={() => {
+                  setSearchTerm('');
+                  setSelectedCategory(null);
+                  setIsOffersOnly(false);
+                  setIsFavoritesOnly(false);
+                }}
+                onAddToCart={addToCart}
+                onGoCheckout={() => setView('checkout')}
+              />
+            )}
+
+            {view === 'checkout' && (
+              <CheckoutCliente
+                branch={selectedBranch}
+                cart={cart}
+                client={client}
+                onClearCart={() => setCart([])}
+                onBack={() => setView('catalogo')}
+                onOrderPlaced={(order) => {
+                  if (order.tipo_entrega === 'RETIRO_TIENDA') {
+                    // Para Retiro en Tienda se confirma y se muestra el agradecimiento directo
+                    api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' }).catch(() => {});
+                    order.estado_pedido = 'ENTREGADO';
+                    setThankYouInfo({ order, tipoEntrega: 'RETIRO_TIENDA' });
+                    setIsThankYouOpen(true);
+                  } else {
+                    setTrackingOrder(order);
+                    setView('rastreo_delivery');
+                  }
+                }}
+              />
+            )}
+
+            {view === 'mis_compras' && (
+              <MisComprasCliente
+                client={client}
+                onTrackDelivery={(order) => {
+                  setTrackingOrder(order);
+                  setView('rastreo_delivery');
+                }}
+                onConfirmPickup={(order) => {
+                  api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' }).catch(() => {});
+                  order.estado_pedido = 'ENTREGADO';
+                  setThankYouInfo({ order, tipoEntrega: 'RETIRO_TIENDA' });
+                  setIsThankYouOpen(true);
+                }}
+                onBackToStore={() => setView('catalogo')}
+              />
+            )}
+
+            {view === 'rastreo_delivery' && (
+              <RastreoDeliveryCliente
+                order={trackingOrder}
+                branch={selectedBranch}
+                onDeliveryCompleted={(updatedOrder) => {
+                  setThankYouInfo({ order: updatedOrder, tipoEntrega: 'DELIVERY' });
+                  setIsThankYouOpen(true);
+                }}
+                onBackToOrders={() => setView('mis_compras')}
+                onBackToStore={() => setView('catalogo')}
+              />
+            )}
+          </main>
+
+          {/* Drawer Carrito */}
+          {isCartOpen && (
+            <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
+              <div className="w-full max-w-md bg-white h-full shadow-2xl flex flex-col">
+                <div className="p-4 border-b bg-stone-50 flex items-center justify-between">
+                  <div className="font-extrabold text-stone-900 text-sm flex items-center gap-2">
+                    <span>🛒</span>
+                    <span>Tu Canasta Mass ({totalItems})</span>
+                  </div>
+                  <button onClick={() => setIsCartOpen(false)} className="p-1 rounded-lg hover:bg-stone-200 font-bold text-stone-500">✕</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scroll">
+                  {cart.length > 0 ? (
+                    cart.map(item => (
+                      <div key={item.producto.id} className="flex gap-3 p-3 bg-stone-50 rounded-2xl border border-stone-200">
+                        <img src={item.producto.imagen_url} alt={item.producto.nombre} className="w-16 h-16 object-cover rounded-xl bg-white border shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-xs text-stone-900 truncate">{item.producto.nombre}</div>
+                          <div className="text-[10px] text-stone-400 font-mono">SKU: {item.producto.codigo_sku}</div>
+                          <div className="text-xs font-extrabold text-mass-red mt-1">S/. {parseFloat(item.producto.precio_venta).toFixed(2)}</div>
+                          <div className="flex items-center justify-between mt-2">
+                            <div className="flex items-center gap-2 bg-white border border-stone-300 rounded-lg px-2 py-0.5">
+                              <button onClick={() => updateCartQty(item.producto.id, item.cantidad - 1)} className="font-bold text-stone-500">-</button>
+                              <span className="text-xs font-bold w-4 text-center">{item.cantidad}</span>
+                              <button onClick={() => updateCartQty(item.producto.id, item.cantidad + 1)} className="font-bold text-stone-500">+</button>
+                            </div>
+                            <button
+                              onClick={() => updateCartQty(item.producto.id, 0)}
+                              className="w-8 h-8 rounded-xl flex items-center justify-center text-stone-400 hover:text-red-600 bg-stone-100/80 hover:bg-red-50 border border-stone-200/60 hover:border-red-200 transition-all duration-200 active:scale-90 group shadow-2xs"
+                              title="Eliminar producto"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-stone-500 group-hover:text-red-600 transition-transform group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 6h18"/>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                <line x1="10" y1="11" x2="10" y2="17"/>
+                                <line x1="14" y1="11" x2="14" y2="17"/>
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="h-64 flex flex-col items-center justify-center text-stone-400 text-xs">
+                      <span className="text-4xl mb-2">🛒</span>
+                      <span>Tu canasta está vacía.</span>
+                    </div>
+                  )}
+                </div>
+
+                {cart.length > 0 && (
+                  <div className="p-4 border-t bg-stone-50 space-y-3">
+                    <div className="space-y-1 text-xs">
+                      <div className="flex justify-between text-stone-500">
+                        <span>Subtotal (sin IGV):</span>
+                        <span>S/. {(totalMercaderia / 1.18).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-stone-500">
+                        <span>IGV (18% Perú):</span>
+                        <span>S/. {(totalMercaderia - (totalMercaderia / 1.18)).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-stone-950 font-extrabold text-base pt-1 border-t">
+                        <span>Total a Pagar:</span>
+                        <span className="text-mass-red">S/. {totalMercaderia.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        setView('checkout');
+                      }}
+                      className="w-full py-3.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-2xl shadow-md transition text-xs uppercase tracking-wider flex items-center justify-center gap-2"
+                    >
+                      <span>Proceder al Pago & Delivery</span>
+                      <span>➔</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Modal Login / Registro del Cliente */}
+          {isLoginOpen && (
+            <LoginClienteModal
+              isOpen={isLoginOpen}
+              onClose={() => setIsLoginOpen(false)}
+              onLoginSuccess={(cli, tok) => {
+                setClient(cli);
+                localStorage.setItem('mass_client_user', JSON.stringify(cli));
+                localStorage.setItem('mass_client_token', tok);
+                setIsLoginOpen(false);
+              }}
+            />
+          )}
+
+          {/* Modal Mi Perfil y Edición de Dirección */}
+          {isProfileOpen && client && (
+            <PerfilClienteModal
+              isOpen={isProfileOpen}
+              client={client}
+              onClose={() => setIsProfileOpen(false)}
+              onUpdated={(updatedClient) => {
+                setClient(updatedClient);
+                localStorage.setItem('mass_client_user', JSON.stringify(updatedClient));
+                setIsProfileOpen(false);
+                alert('¡Datos y dirección de entrega actualizados correctamente!');
+              }}
+            />
+          )}
+
+          {/* Modal de Agradecimiento por su Compra (Delivery y Retiro en Tienda) */}
+          {isThankYouOpen && thankYouInfo && (
+            <ModalAgradecimientoCompra
+              isOpen={isThankYouOpen}
+              order={thankYouInfo.order}
+              tipoEntrega={thankYouInfo.tipoEntrega}
+              branch={selectedBranch}
+              onClose={() => {
+                setIsThankYouOpen(false);
+                setView('catalogo');
+              }}
+              onViewOrders={() => {
+                setIsThankYouOpen(false);
+                setView('mis_compras');
+              }}
+            />
+          )}
+
+          <AccessibilityWidget />
+
+          <footer className="bg-stone-900 text-stone-400 text-xs py-8 border-t border-stone-800 mt-auto">
+            <div className="max-w-7xl mx-auto px-4 text-center space-y-2">
+              <p className="font-bold text-white">Tiendas Mass © 2026 – Portal de Ventas Omnicanal y Ahorro</p>
+              <p className="text-[11px] text-stone-500">Precios bajos garantizados en Huancayo y todo el Perú. Todos los derechos reservados.</p>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    
+    // ==========================================
+    // CARRUSEL DINÁMICO DE BANNERS COMERCIALES
+    // Sincronización automática de 5s, navegación circular y accesibilidad WCAG
+    // ==========================================
+    function BannerCarouselCliente({ branch, onCtaClick }) {
+      const [banners, setBanners] = useState([]);
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [isPaused, setIsPaused] = useState(false);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        let isMounted = true;
+        setLoading(true);
+        const url = branch?.id ? `/banners?sucursal_id=${branch.id}` : '/banners';
+        api.get(url).then(res => {
+          if (isMounted) {
+            setBanners(res.data?.data || res.data || []);
+            setCurrentIndex(0);
+          }
+        }).catch(err => {
+          console.error('Error al cargar banners:', err);
+        }).finally(() => {
+          if (isMounted) setLoading(false);
+        });
+        return () => { isMounted = false; };
+      }, [branch?.id]);
+
+      // Rotación automática cada 5 segundos estrictamente sincronizada
+      // Al cambiar currentIndex (por clic en flechas o dots), el timer se reinicia de inmediato
+      useEffect(() => {
+        if (banners.length <= 1 || isPaused) return;
+        const timer = setInterval(() => {
+          setCurrentIndex(prev => (prev + 1) % banners.length);
+        }, 5000);
+        return () => clearInterval(timer);
+      }, [banners.length, isPaused, currentIndex]);
+
+      const handlePrev = () => {
+        setCurrentIndex(prev => (prev - 1 + banners.length) % banners.length);
+      };
+
+      const handleNext = () => {
+        setCurrentIndex(prev => (prev + 1) % banners.length);
+      };
+
+      const handleKeyDown = (e) => {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          handlePrev();
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          handleNext();
+        }
+      };
+
+      if (loading) {
+        return <div className="w-full h-64 sm:h-72 md:h-84 rounded-3xl bg-stone-200 animate-pulse mb-6"></div>;
+      }
+      if (banners.length === 0) return null;
+
+      return (
+        <div
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
+          className="relative w-full overflow-hidden rounded-3xl md:rounded-[2rem] shadow-md border border-stone-200/80 bg-stone-900 select-none group mb-6 focus:outline-none focus:ring-2 focus:ring-mass-yellow/60"
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          role="region"
+          aria-roledescription="carrusel"
+          aria-label="Carrusel de promociones y ofertas destacadas"
+        >
+          <div className="relative w-full h-64 sm:h-72 md:h-84">
+            {banners.map((item, idx) => (
+              <div
+                key={item.id || idx}
+                className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
+                  idx === currentIndex ? 'opacity-100 z-10 pointer-events-auto' : 'opacity-0 z-0 pointer-events-none'
+                }`}
+                aria-hidden={idx !== currentIndex}
+              >
+                <img
+                  src={item.imagen_url}
+                  alt={item.titulo}
+                  className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 transform scale-100 group-hover:scale-102"
+                />
+                <div className="absolute inset-0 bg-gradient-to-r from-stone-950/90 via-stone-950/60 to-transparent"></div>
+
+                <div className="relative h-full max-w-7xl mx-auto px-6 sm:px-12 flex flex-col justify-center items-start text-white space-y-2 sm:space-y-3 z-10 max-w-2xl">
+                  {item.tag_promocion && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] sm:text-xs font-black uppercase tracking-wider bg-mass-red text-white shadow-md">
+                      <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12.7 2.3A1 1 0 0 0 12 2H4a2 2 0 0 0-2 2v8a1 1 0 0 0 .3.7l10 10a1 1 0 0 0 1.4 0l8-8a1 1 0 0 0 0-1.4l-9-9zM6.5 8C5.7 8 5 7.3 5 6.5S5.7 5 6.5 5 8 5.7 8 6.5 7.3 8 6.5 8z"/></svg>
+                      <span>{item.tag_promocion}</span>
+                    </span>
+                  )}
+                  <h2 className="text-xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight drop-shadow-sm">
+                    {item.titulo}
+                  </h2>
+                  {item.subtitulo && (
+                    <p className="text-xs sm:text-sm text-stone-200 line-clamp-2 max-w-xl font-medium leading-relaxed drop-shadow">
+                      {item.subtitulo}
+                    </p>
+                  )}
+                  <div className="pt-2 flex items-center gap-3 flex-wrap">
+                    {item.precio_destacado && (
+                      <span className="text-xs sm:text-sm font-black text-mass-yellow drop-shadow-sm bg-black/50 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-amber-400/40 uppercase tracking-wide">
+                        {item.precio_destacado}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onCtaClick ? onCtaClick(item) : window.location.assign(item.boton_enlace || '#catalogo-grid')}
+                      className="px-5 py-2.5 sm:px-6 sm:py-3 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black text-xs sm:text-sm rounded-xl shadow-lg transition transform active:scale-95 flex items-center gap-2 uppercase tracking-wide border border-amber-300 cursor-pointer"
+                    >
+                      <span>{item.boton_texto || 'Aprovechar Ofertas'}</span>
+                      <span className="text-sm font-bold">➔</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {banners.length > 1 && (
+            <>
+              {/* Botón Circular Anterior */}
+              <button
+                type="button"
+                onClick={handlePrev}
+                aria-label="Banner anterior"
+                className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/90 hover:bg-white text-stone-900 flex items-center justify-center shadow-lg backdrop-blur-xs transition transform hover:scale-105 active:scale-95 z-20 font-black text-xl cursor-pointer border border-stone-200/40 focus:outline-none focus:ring-2 focus:ring-mass-yellow"
+              >
+                ‹
+              </button>
+
+              {/* Botón Circular Siguiente */}
+              <button
+                type="button"
+                onClick={handleNext}
+                aria-label="Siguiente banner"
+                className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-white/90 hover:bg-white text-stone-900 flex items-center justify-center shadow-lg backdrop-blur-xs transition transform hover:scale-105 active:scale-95 z-20 font-black text-xl cursor-pointer border border-stone-200/40 focus:outline-none focus:ring-2 focus:ring-mass-yellow"
+              >
+                ›
+              </button>
+
+              {/* Cápsula de Indicadores Inferiores */}
+              <div
+                role="tablist"
+                aria-label="Diapositivas del carrusel"
+                className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20 bg-stone-950/70 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 shadow-lg"
+              >
+                {banners.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    role="tab"
+                    aria-selected={currentIndex === idx}
+                    aria-label={`Ir al banner ${idx + 1}`}
+                    onClick={() => setCurrentIndex(idx)}
+                    className={`transition-all duration-300 rounded-full cursor-pointer focus:outline-none focus:ring-1 focus:ring-mass-yellow ${
+                      currentIndex === idx ? 'w-7 h-2 bg-mass-yellow shadow' : 'w-2 h-2 bg-white/40 hover:bg-white/80'
+                    }`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // PANEL DE ACCESIBILIDAD WEB (WCAG 2.1 AA)
+    // Conectado al motor modular /frontend/js/accessibility.js
+    // ==========================================
+    function AccessibilityWidget() {
+      const [isOpen, setIsOpen] = useState(false);
+      const [a11yState, setA11yState] = useState(() => {
+        return window.MassA11y ? window.MassA11y.getState() : {
+          fontSize: 'normal',
+          contrast: 'normal',
+          highFocus: false
+        };
+      });
+
+      useEffect(() => {
+        if (window.MassA11y) {
+          return window.MassA11y.subscribe(setA11yState);
+        }
+      }, []);
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === 'Escape' && isOpen) setIsOpen(false);
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [isOpen]);
+
+      const handleFontSize = (size) => {
+        if (window.MassA11y) window.MassA11y.setFontSize(size);
+      };
+
+      const handleContrast = (mode) => {
+        if (window.MassA11y) window.MassA11y.setContrast(mode);
+      };
+
+      const handleHighFocus = (checked) => {
+        if (window.MassA11y) window.MassA11y.setHighFocus(checked);
+      };
+
+      const handleReset = () => {
+        if (window.MassA11y) window.MassA11y.reset();
+      };
+
+      return (
+        <>
+          <button
+            onClick={() => setIsOpen(!isOpen)}
+            aria-label="Abrir panel de accesibilidad"
+            aria-expanded={isOpen}
+            data-a11y-keep="true"
+            className="fixed bottom-5 left-5 z-40 bg-stone-900 hover:bg-black text-mass-yellow p-3 rounded-full shadow-2xl border-2 border-amber-400 focus:outline-none focus:ring-4 focus:ring-amber-300 transition transform hover:scale-110 active:scale-95 flex items-center justify-center font-extrabold text-sm"
+            title="Herramientas de Accesibilidad (WCAG 2.1 AA)"
+          >
+            👁️
+          </button>
+
+          {isOpen && (
+            <div
+              id="a11y-widget-panel"
+              className="fixed bottom-20 left-5 z-50 w-80 sm:w-96 rounded-3xl shadow-2xl p-5 space-y-4 text-xs animate-in zoom-in-95 duration-200"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Herramientas de Accesibilidad Web"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">♿</span>
+                  <div>
+                    <h3 className="font-extrabold text-stone-900 text-sm">Accesibilidad Web</h3>
+                    <p className="text-[10px] text-stone-500 font-medium">Estándar WCAG 2.1 Nivel AA</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  aria-label="Cerrar panel de accesibilidad"
+                  data-a11y-keep="true"
+                  className="w-7 h-7 rounded-full bg-stone-100 hover:bg-stone-200 font-bold flex items-center justify-center"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* 1. Tamaño del Texto */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-stone-800 flex items-center gap-1.5">
+                  <span>🔤 Tamaño del Texto</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'normal', label: 'Normal' },
+                    { id: 'large', label: '115% +' },
+                    { id: 'xlarge', label: '125% ++' }
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleFontSize(item.id)}
+                      data-a11y-keep="true"
+                      className={`py-2 px-1 rounded-xl text-center font-bold border transition ${
+                        a11yState.fontSize === item.id
+                          ? 'bg-mass-yellow text-stone-950 border-2 border-stone-900 font-black shadow-sm ring-2 ring-amber-300'
+                          : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      {a11yState.fontSize === item.id ? '✓ ' : ''}{item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2. Contraste Visual */}
+              <div className="space-y-1.5">
+                <label className="font-bold text-stone-800 flex items-center gap-1.5">
+                  <span>🎨 Contraste Visual</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'normal', label: 'Estándar' },
+                    { id: 'high', label: 'Alto Contraste' },
+                    { id: 'grayscale', label: 'Gris' }
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleContrast(item.id)}
+                      data-a11y-keep="true"
+                      className={`py-2 px-1 rounded-xl text-center font-bold border transition ${
+                        a11yState.contrast === item.id
+                          ? 'bg-mass-yellow text-stone-950 border-2 border-stone-900 font-black shadow-sm ring-2 ring-amber-300'
+                          : 'bg-stone-50 text-stone-700 border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      {a11yState.contrast === item.id ? '✓ ' : ''}{item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Resaltar Foco Teclado */}
+              <div className="pt-1">
+                <label className="flex items-center justify-between p-2.5 rounded-2xl bg-stone-50 border border-stone-200 cursor-pointer hover:bg-stone-100 select-none">
+                  <div>
+                    <span className="font-bold text-stone-900 block">Resaltar Foco Teclado</span>
+                    <span className="text-[10px] text-stone-500">Bordes visibles con Tab</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={a11yState.highFocus}
+                    onChange={(e) => handleHighFocus(e.target.checked)}
+                    className="w-4 h-4 text-mass-red accent-mass-red rounded cursor-pointer"
+                  />
+                </label>
+              </div>
+
+              {/* 4. Restablecer y Cerrar */}
+              <div className="pt-2 border-t border-stone-100 flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  data-a11y-keep="true"
+                  className="text-stone-500 hover:text-mass-red font-bold text-[11px]"
+                >
+                  Restablecer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  data-a11y-keep="true"
+                  className="px-4 py-1.5 bg-mass-yellow text-stone-950 font-black rounded-xl text-xs hover:bg-amber-400 transition"
+                >
+                  Listo
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // ==========================================
+    // 1. CATÁLOGO DEL CLIENTE CON FILTROS LATERALES
+    // ==========================================
+    const POPULAR_BRANDS = [
+      'PRIMOR', 'COSTEÑO', 'GLORIA', 'MASS', 'CAMPO MASS',
+      'BOLÍVAR', 'INKA KOLA', 'LA CALERA', 'ALTOMAYO', 'DON VITTORIO', 'LAIVE', 'COSTENITO'
+    ];
+
+    function detectBrand(name) {
+      const upper = (name || '').toUpperCase();
+      for (const b of POPULAR_BRANDS) {
+        if (upper.includes(b)) return b;
+      }
+      return 'MASS';
+    }
+
+    function CatalogoCliente({
+      branch,
+      searchTerm,
+      selectedCategory,
+      setSelectedCategory,
+      isOffersOnly,
+      setIsOffersOnly,
+      isFavoritesOnly,
+      favorites,
+      onToggleFavorite,
+      onClearFilters,
+      onAddToCart,
+      onGoCheckout
+    }) {
+      const [productos, setProductos] = useState([]);
+      const [categorias, setCategorias] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      // Filtros internos
+      const [catalogSearch, setCatalogSearch] = useState('');
+      const [minPrice, setMinPrice] = useState(0);
+      const [maxPrice, setMaxPrice] = useState(40);
+      const [selectedBrands, setSelectedBrands] = useState([]);
+      const [withStock, setWithStock] = useState(true);
+      const [lowStock, setLowStock] = useState(true);
+      const [shortRotation, setShortRotation] = useState(false);
+      const [sortBy, setSortBy] = useState('relevancia');
+      const [quickFilter, setQuickFilter] = useState('todos');
+      const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+      // Cantidades locales por producto
+      const [localQtys, setLocalQtys] = useState({});
+
+      // Modal de Detalle de Producto al tocar cualquier producto
+      const [selectedProductModal, setSelectedProductModal] = useState(null);
+      const [modalQty, setModalQty] = useState(1);
+
+      useEffect(() => {
+        const handleKeyDown = (e) => {
+          if (e.key === 'Escape' && selectedProductModal) {
+            setSelectedProductModal(null);
+          }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+      }, [selectedProductModal]);
+
+      const loadCatalog = () => {
+        if (!branch?.id) return;
+        setLoading(true);
+        Promise.all([
+          api.get(`/productos?sucursal_id=${branch.id}`),
+          api.get('/categorias')
+        ]).then(([prodRes, catRes]) => {
+          setProductos(prodRes.data || []);
+          setCategorias(catRes.data || []);
+        }).finally(() => setLoading(false));
+      };
+
+      useEffect(() => { loadCatalog(); }, [branch]);
+
+      // Apertura automática si viene el parámetro ?producto=id en la URL
+      useEffect(() => {
+        const prodParam = new URLSearchParams(window.location.search).get('producto');
+        if (prodParam && productos.length > 0) {
+          const found = productos.find(p => String(p.id) === String(prodParam) || String(p.codigo_sku).toLowerCase() === String(prodParam).toLowerCase());
+          if (found) {
+            setSelectedProductModal(found);
+            setModalQty(1);
+          }
+        }
+      }, [productos]);
+
+      // Conteo dinámico de productos por categoría
+      const categoryCounts = useMemo(() => {
+        const counts = {};
+        productos.forEach(p => {
+          const cid = p.categoria_id;
+          counts[cid] = (counts[cid] || 0) + 1;
+        });
+        return counts;
+      }, [productos]);
+
+      const toggleBrand = (b) => {
+        setSelectedBrands(prev =>
+          prev.includes(b) ? prev.filter(x => x !== b) : [...prev, b]
+        );
+      };
+
+      const updateLocalQty = (productId, delta, maxStock) => {
+        if (maxStock !== undefined && maxStock <= 0) return;
+        setLocalQtys(prev => {
+          const cur = prev[productId] || 1;
+          const next = cur + delta;
+          if (next < 1) return { ...prev, [productId]: 1 };
+          if (maxStock !== undefined && next > maxStock) {
+            alert("Disponibilidad máxima en esta sede: " + maxStock + " unidades.");
+            return { ...prev, [productId]: maxStock };
+          }
+          return { ...prev, [productId]: next };
+        });
+      };
+
+      const handleResetAllFilters = () => {
+        setCatalogSearch('');
+        setMinPrice(0);
+        setMaxPrice(40);
+        setSelectedBrands([]);
+        setWithStock(true);
+        setLowStock(true);
+        setShortRotation(false);
+        setQuickFilter('todos');
+        if (setSelectedCategory) setSelectedCategory(null);
+        if (setIsOffersOnly) setIsOffersOnly(false);
+        onClearFilters();
+      };
+
+      // Filtrado exhaustivo y ordenamiento
+      const filteredProducts = useMemo(() => {
+        return productos.filter(p => {
+          const stock = parseInt(p.stock_actual || 0);
+          const price = parseFloat(p.precio_venta || 0);
+          const brand = detectBrand(p.nombre);
+
+          // 1. Categoría
+          if (selectedCategory && parseInt(p.categoria_id) !== parseInt(selectedCategory)) {
+            return false;
+          }
+
+          // 2. Buscador del Header Principal
+          if (searchTerm && searchTerm.trim() !== '') {
+            const q = searchTerm.toLowerCase().trim();
+            const matchName = (p.nombre || '').toLowerCase().includes(q);
+            const matchSku = (p.codigo_sku || '').toLowerCase().includes(q);
+            const matchCat = (p.categoria_nombre || '').toLowerCase().includes(q);
+            if (!matchName && !matchSku && !matchCat) return false;
+          }
+
+          // 3. Buscador interno del Catálogo
+          if (catalogSearch && catalogSearch.trim() !== '') {
+            const q = catalogSearch.toLowerCase().trim();
+            const matchName = (p.nombre || '').toLowerCase().includes(q);
+            const matchSku = (p.codigo_sku || '').toLowerCase().includes(q);
+            const matchBrand = brand.toLowerCase().includes(q);
+            if (!matchName && !matchSku && !matchBrand) return false;
+          }
+
+          // 4. Rango de Precio
+          if (minPrice !== '' && !isNaN(minPrice) && price < parseFloat(minPrice)) return false;
+          if (maxPrice !== '' && !isNaN(maxPrice) && price > parseFloat(maxPrice)) return false;
+
+          // 5. Marcas Populares
+          if (selectedBrands.length > 0 && !selectedBrands.includes(brand)) {
+            return false;
+          }
+
+          // 6. Disponibilidad en Tienda
+          if (!withStock && !lowStock) return false;
+          if (!withStock && stock > 10) return false;
+          if (!lowStock && stock <= 10 && stock > 0) return false;
+          if (stock <= 0 && (!withStock && !lowStock)) return false;
+
+          // 7. Consumo Responsable (Lotes corta rotación / PEPS)
+          if (shortRotation && p.es_perecedero !== 1) {
+            return false;
+          }
+
+          // 8. Quick Filter y Ofertas Bomba
+          if (isOffersOnly || quickFilter === 'ofertas') {
+            if (!(price <= 6.00 || p.es_perecedero === 1)) return false;
+          } else if (quickFilter === 'precio_bajo') {
+            if (price > 6.00) return false;
+          } else if (quickFilter === 'mas_vendidos') {
+            if (stock < 50) return false;
+          }
+
+          // 9. Mis Favoritos
+          if (isFavoritesOnly && !favorites.includes(p.id)) {
+            return false;
+          }
+
+          return true;
+        }).sort((a, b) => {
+          if (sortBy === 'menor_precio') return parseFloat(a.precio_venta) - parseFloat(b.precio_venta);
+          if (sortBy === 'mayor_precio') return parseFloat(b.precio_venta) - parseFloat(a.precio_venta);
+          if (sortBy === 'nombre_asc') return (a.nombre || '').localeCompare(b.nombre || '');
+          return 0; // Relevancia
+        });
+      }, [
+        productos,
+        selectedCategory,
+        searchTerm,
+        catalogSearch,
+        minPrice,
+        maxPrice,
+        selectedBrands,
+        withStock,
+        lowStock,
+        shortRotation,
+        quickFilter,
+        isOffersOnly,
+        isFavoritesOnly,
+        favorites,
+        sortBy
+      ]);
+
+      const activeCatObj = categorias.find(c => c.id === selectedCategory);
+      const hasAnyActiveFilter = selectedCategory !== null || isOffersOnly || isFavoritesOnly ||
+        (searchTerm && searchTerm.trim() !== '') || (catalogSearch && catalogSearch.trim() !== '') ||
+        selectedBrands.length > 0 || shortRotation || quickFilter !== 'todos' ||
+        minPrice > 0 || maxPrice < 40 || !withStock || !lowStock;
+
+return (
+        <div className="space-y-5">
+          {/* Banner Principal Dinámico de Ofertas */}
+          {!selectedCategory && !isOffersOnly && !isFavoritesOnly && !searchTerm && !catalogSearch && (
+            <BannerCarouselCliente
+              branch={branch}
+              onCtaClick={() => {
+                const el = document.getElementById("catalogo-grid");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+            />
+          )}
+
+          {/* Breadcrumb de Navegación */}
+          <nav className="flex items-center gap-1.5 text-xs text-stone-500 font-semibold">
+            <button
+              onClick={handleResetAllFilters}
+              className="hover:text-mass-red transition"
+            >
+              Inicio
+            </button>
+            <span className="text-stone-300">›</span>
+            <button
+              onClick={() => {
+                if (setSelectedCategory) setSelectedCategory(null);
+                if (setIsOffersOnly) setIsOffersOnly(false);
+              }}
+              className="hover:text-mass-red transition"
+            >
+              Catálogo de Productos
+            </button>
+            <span className="text-stone-300">›</span>
+            <span className="text-mass-red font-black">
+              {activeCatObj ? activeCatObj.nombre : isOffersOnly ? 'Ofertas Bomba' : 'Todas las categorías'}
+            </span>
+          </nav>
+
+          {/* Título Principal y Acceso a Filtros */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-black text-stone-900 tracking-tight">
+                  Catálogo General de Productos
+                </h1>
+                <span className="text-xs font-bold bg-white text-stone-600 px-3 py-1 rounded-full border border-stone-200 shadow-2xs">
+                  {filteredProducts.length} productos
+                </span>
+                {hasAnyActiveFilter && (
+                  <button
+                    onClick={handleResetAllFilters}
+                    className="text-xs font-bold text-mass-red hover:underline ml-1"
+                  >
+                    ✕ Limpiar filtros
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-stone-500 font-medium mt-1">
+                Todos los productos disponibles con precios bajos garantizados y control de frescura PEPS
+              </p>
+            </div>
+          </div>
+
+          {/* Catálogo Completo a Ancho Completo */}
+          <section className="w-full space-y-4">
+              
+              {/* Grilla de Productos a Ancho Completo */}
+              {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
+                    <div key={n} className="bg-white rounded-2xl p-4 h-80 border border-stone-200"></div>
+                  ))}
+                </div>
+              ) : filteredProducts.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {filteredProducts.map((p, idx) => {
+                    const stock = parseInt(p.stock_actual || 0);
+                    const isFav = favorites.includes(p.id);
+                    const brand = detectBrand(p.nombre);
+                    const cardQty = localQtys[p.id] || 1;
+                    const priceNum = parseFloat(p.precio_venta || 0);
+                    const origPrice = (priceNum * 1.25).toFixed(2);
+
+                    const isAgotado = stock <= 0;
+                    const isBajoStock = stock > 0 && stock <= 10;
+
+                    // Determinación de etiqueta destacada según reglas de stock
+                    let badgeNode = null;
+                    if (isAgotado) {
+                      badgeNode = (
+                        <span className="bg-red-600 text-white text-[9px] font-black px-2 py-0.5 rounded uppercase shadow-xs">
+                          PRODUCTO AGOTADO
+                        </span>
+                      );
+                    } else if (isBajoStock) {
+                      badgeNode = (
+                        <span className="bg-amber-500 text-stone-950 text-[9px] font-black px-2 py-0.5 rounded uppercase shadow-xs">
+                          ¡ÚLTIMAS {stock}!
+                        </span>
+                      );
+                    } else if (priceNum <= 6.00) {
+                      badgeNode = (
+                        <span className="bg-[#ff671f] text-white text-[9px] font-black px-2 py-0.5 rounded uppercase shadow-xs">
+                          -22% OFERTA
+                        </span>
+                      );
+                    } else if (stock >= 80) {
+                      badgeNode = (
+                        <span className="bg-stone-900 text-mass-yellow text-[9px] font-black px-2 py-0.5 rounded uppercase shadow-xs">
+                          MÁS VENDIDO
+                        </span>
+                      );
+                    } else if (p.es_perecedero === 1) {
+                      badgeNode = (
+                        <span className="bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded uppercase shadow-xs">
+                          COSECHA HOY
+                        </span>
+                      );
+                    }
+
+                    // Elemento del banner publicitario (después de la primera fila completa de 4 productos)
+                    const bannerNode = idx === 4 ? (
+                      <div key="promo-banner" className="col-span-full bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border border-amber-200/90 rounded-2xl p-5 flex flex-col md:flex-row items-center justify-between gap-4 my-2 shadow-2xs">
+                        <div className="space-y-1 text-center md:text-left">
+                          <h4 className="font-black text-base text-stone-900 flex items-center gap-2 justify-center md:justify-start">
+                            <span>⚡</span>
+                            <span>Aprovecha más con Lotes de Corto Vencimiento</span>
+                          </h4>
+                          <p className="text-xs text-stone-600 font-medium">
+                            Calidad 100% garantizada y hasta 50% de descuento. Productos frescos con consumo responsable.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShortRotation(true);
+                            setQuickFilter('ofertas');
+                          }}
+                          className="px-5 py-2.5 bg-mass-red hover:bg-red-700 text-white text-xs font-black rounded-xl shadow-xs transition flex items-center gap-2 shrink-0 uppercase tracking-wide"
+                        >
+                          <span>Ver Productos Aprovecha</span>
+                          <span>➔</span>
+                        </button>
+                      </div>
+                    ) : null;
+
+                    return (
+                      <React.Fragment key={p.id}>
+                        {bannerNode}
+                        <div
+                          onClick={() => {
+                            setModalQty(localQtys[p.id] || 1);
+                            setSelectedProductModal(p);
+                          }}
+                          className="bg-white rounded-2xl border border-stone-200/90 p-4 shadow-2xs hover:shadow-lg hover:border-amber-400 transition-all duration-200 flex flex-col justify-between group relative h-full cursor-pointer"
+                        >
+                          
+                          {/* Badges y Botón Favoritos */}
+                          <div className="flex items-center justify-between absolute top-3.5 left-3.5 right-3.5 z-10 pointer-events-none">
+                            <div className="pointer-events-auto">
+                              {badgeNode}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleFavorite(p.id);
+                              }}
+                              className={`pointer-events-auto w-7 h-7 rounded-full flex items-center justify-center text-xs shadow-xs transition border ${
+                                isFav ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white/95 text-stone-400 hover:text-red-500 border-stone-200'
+                              }`}
+                              title={isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+                            >
+                              {isFav ? '❤️' : '♡'}
+                            </button>
+                          </div>
+
+                          {/* Imagen del Producto */}
+                          <div className="w-full h-44 rounded-xl overflow-hidden bg-stone-50/80 border border-stone-100 flex items-center justify-center mb-3 p-3 pt-4 relative">
+                            <img
+                              src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300'}
+                              alt={p.nombre}
+                              className={`max-h-full max-w-full object-contain transition-transform duration-300 ${isAgotado ? "grayscale contrast-75" : "group-hover:scale-105"}`}
+                            />
+                            {isAgotado && (
+                              <div className="absolute inset-0 bg-stone-950/40 flex items-center justify-center">
+                                <span className="px-3 py-1 bg-red-600 text-white font-black text-xs rounded-xl shadow-md uppercase">Sin Stock</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Disponibilidad y Detalles */}
+                          <div className="space-y-1.5 flex-1 flex flex-col justify-start">
+                            <div className="flex items-center gap-1.5 text-[11px] text-stone-500 font-medium">
+                              <span className={`w-2 h-2 rounded-full inline-block ${stock > 10 ? 'bg-emerald-500' : stock > 0 ? 'bg-amber-500' : 'bg-red-500'}`}></span>
+                              <span className={isAgotado ? "text-red-600 font-bold" : isBajoStock ? "text-amber-700 font-bold" : "text-stone-500 font-medium"}>
+                                {isAgotado ? "Producto agotado en tienda" : isBajoStock ? `¡Solo ${stock} disponibles en ${branch?.nombre?.replace("Tienda Mass - ", "") || "sede"}!` : `${stock} unidades disponibles`}
+                              </span>
+                            </div>
+
+                            <div className="text-[10px] text-stone-400 font-extrabold uppercase tracking-wider">
+                              {brand} / {(p.categoria_nombre || 'GENERAL').toUpperCase()}
+                            </div>
+
+                            <h3 className="font-bold text-stone-900 text-sm line-clamp-2 leading-snug min-h-[2.5rem] group-hover:text-mass-red transition-colors">
+                              {p.nombre}
+                            </h3>
+
+                            <div className="text-xs text-stone-500 font-medium">
+                              {p.unidad_medida || 'Unidad'}
+                            </div>
+                          </div>
+
+                          {/* Precios y Botón de Agregar (Con Rojo y Amarillo Mass) */}
+                          <div className="mt-auto pt-3 border-t border-stone-100 flex flex-col gap-2.5">
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-base sm:text-lg font-black text-mass-red">
+                                S/ {priceNum.toFixed(2)}
+                              </span>
+                              <span className="text-xs text-stone-400 line-through font-semibold">
+                                S/ {origPrice}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center border border-stone-200 rounded-xl bg-stone-50 px-2 py-1 shrink-0">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateLocalQty(p.id, -1);
+                                  }}
+                                  className="text-stone-500 hover:text-stone-800 font-bold px-1.5 text-xs"
+                                >
+                                  -
+                                </button>
+                                <span className="text-xs font-black text-stone-900 w-5 text-center">
+                                  {cardQty}
+                                </span>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateLocalQty(p.id, 1);
+                                  }}
+                                  className="text-stone-500 hover:text-stone-800 font-bold px-1.5 text-xs"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAddToCart(p, cardQty);
+                                }}
+                                disabled={stock <= 0}
+                                className="flex-1 py-2.5 bg-mass-yellow hover:bg-yellow-400 text-stone-950 text-xs font-black rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 border border-yellow-300 active:scale-95 disabled:bg-stone-200 disabled:text-stone-400 disabled:border-transparent disabled:cursor-not-allowed"
+                              >
+                                <span>{stock > 0 ? '🛒 Agregar' : 'Agotado'}</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
+                  <span className="text-4xl">🔍</span>
+                  <h3 className="text-sm font-bold text-stone-900">No encontramos productos con esos filtros</h3>
+                  <p className="text-xs text-stone-500">Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.</p>
+                  <button
+                    onClick={handleResetAllFilters}
+                    className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
+                  >
+                    Ver Todos los Productos (17)
+                  </button>
+                </div>
+              )}
+            </section>
+
+          {/* Modal de Detalle de Producto al seleccionar o tocar cualquier producto */}
+          {selectedProductModal && (() => {
+            const p = selectedProductModal;
+            const stock = parseInt(p.stock_actual || 0);
+            const isFav = favorites.includes(p.id);
+            const brand = detectBrand(p.nombre);
+            const priceNum = parseFloat(p.precio_venta || 0);
+            const origPrice = (priceNum * 1.25).toFixed(2);
+            const subtotal = (priceNum * modalQty).toFixed(2);
+
+            let badgeLabel = 'MÁS VENDIDO';
+            let badgeClass = 'bg-[#1b4d3e] text-white';
+            if (priceNum <= 6.00) {
+              badgeLabel = '-22% OFERTA';
+              badgeClass = 'bg-[#ff671f] text-white';
+            } else if ((p.nombre || '').toLowerCase().includes('pack') || (p.nombre || '').toLowerCase().includes('5 kg')) {
+              badgeLabel = 'AHORRO PACK';
+              badgeClass = 'bg-amber-500 text-stone-950';
+            }
+
+            return (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+                role="dialog"
+                aria-modal="true"
+                aria-label={`Detalle del producto ${p.nombre}`}
+              >
+                <div className="fixed inset-0" onClick={() => setSelectedProductModal(null)}></div>
+                
+                <div className="relative w-full max-w-4xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden max-h-[92vh] flex flex-col z-10 animate-in zoom-in-95 duration-200">
+                  
+                  {/* Cabecera / Breadcrumb */}
+                  <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between gap-3 bg-stone-50/70">
+                    <nav className="flex items-center gap-1.5 text-xs text-stone-500 font-semibold truncate">
+                      <span className="hover:text-stone-800">Inicio</span>
+                      <span>›</span>
+                      <span className="hover:text-stone-800">Catálogo</span>
+                      <span>›</span>
+                      <span className="hover:text-stone-800">{p.categoria_nombre || 'General'}</span>
+                      <span>›</span>
+                      <span className="text-stone-900 font-bold truncate">{p.nombre}</span>
+                    </nav>
+                    <button
+                      onClick={() => setSelectedProductModal(null)}
+                      className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 flex items-center justify-center font-black text-stone-500 hover:text-stone-800 text-sm transition shrink-0"
+                      title="Cerrar detalle"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Contenido Principal del Detalle */}
+                  <div className="p-5 sm:p-8 overflow-y-auto space-y-6 custom-scroll">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 items-start">
+                      
+                      {/* Columna Izquierda: Galería y Foto Principal */}
+                      <div className="md:col-span-7 space-y-4">
+                        <div className="flex gap-3 items-start">
+                          
+                          {/* Miniaturas Laterales como en la imagen */}
+                          <div className="flex flex-col gap-2 shrink-0">
+                            {[0, 1, 2].map((idx) => (
+                              <div
+                                key={idx}
+                                className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-stone-50 p-1 flex items-center justify-center border-2 transition cursor-pointer ${
+                                  idx === 0 ? 'border-emerald-700 shadow-xs' : 'border-stone-200 opacity-60 hover:opacity-100'
+                                }`}
+                              >
+                                <img
+                                  src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300'}
+                                  alt={p.nombre}
+                                  className="max-h-full max-w-full object-contain"
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Imagen Principal Hero */}
+                          <div className="flex-1 h-72 sm:h-96 rounded-3xl overflow-hidden bg-stone-50/90 border border-stone-200/80 p-4 sm:p-6 flex items-center justify-center relative group shadow-2xs">
+                            {/* Badge en la foto */}
+                            <span className={`absolute top-4 left-4 ${badgeClass} text-[10px] sm:text-xs font-black px-3 py-1 rounded-full uppercase shadow-xs tracking-wider`}>
+                              {badgeLabel}
+                            </span>
+
+                            {/* Botón Favorito en la foto */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onToggleFavorite(p.id);
+                              }}
+                              className={`absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center text-sm shadow-md transition border ${
+                                isFav ? 'bg-red-50 text-red-600 border-red-200' : 'bg-white/95 text-stone-400 hover:text-red-500 border-stone-200'
+                              }`}
+                              title={isFav ? 'Quitar de favoritos' : 'Guardar en favoritos'}
+                            >
+                              {isFav ? '❤️' : '♡'}
+                            </button>
+
+                            <img
+                              src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=600'}
+                              alt={p.nombre}
+                              className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform duration-300"
+                            />
+                          </div>
+                        </div>
+
+                        {/* 3 Badges de Confianza debajo de la imagen (Como en la foto) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 pt-2">
+                          <div className="bg-stone-50/90 border border-stone-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                              ✓
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-[11px] text-stone-900 leading-tight">100% Original</div>
+                              <div className="text-[10px] text-stone-500 font-medium">Producto auténtico</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-stone-50/90 border border-stone-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                              ↺
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-[11px] text-stone-900 leading-tight">Garantía Mass</div>
+                              <div className="text-[10px] text-stone-500 font-medium">Devolución fácil</div>
+                            </div>
+                          </div>
+
+                          <div className="bg-stone-50/90 border border-stone-200/80 rounded-2xl p-2.5 sm:p-3 flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center font-black text-xs shrink-0">
+                              ♻
+                            </div>
+                            <div>
+                              <div className="font-extrabold text-[11px] text-stone-900 leading-tight">Empaque Seguro</div>
+                              <div className="text-[10px] text-stone-500 font-medium">Reciclable</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Columna Derecha: Información del Producto, Presentación y Compra */}
+                      <div className="md:col-span-5 space-y-4 bg-white p-5 sm:p-6 rounded-3xl border border-stone-200 shadow-xs">
+                        
+                        {/* Marca y SKU */}
+                        <div className="text-[11px] font-extrabold uppercase tracking-wider text-stone-400">
+                          {brand} • SKU {p.codigo_sku || 'SKU-000' + p.id}
+                        </div>
+
+                        {/* Título */}
+                        <h2 className="text-xl sm:text-2xl font-black text-stone-900 leading-snug">
+                          {p.nombre}
+                        </h2>
+
+                        {/* Calificación y opiniones */}
+                        <div className="flex items-center gap-2 text-xs font-bold text-stone-600">
+                          <span className="text-amber-500 text-sm">★★★★★</span>
+                          <span className="text-stone-900 font-black">4.8</span>
+                          <span className="text-stone-400 font-medium">(48 opiniones)</span>
+                        </div>
+
+                        {/* Precios (Verde esmeralda y tachado) */}
+                        <div className="flex items-baseline gap-3 pt-1">
+                          <span className="text-2xl sm:text-3xl font-black text-emerald-800">
+                            S/ {priceNum.toFixed(2)}
+                          </span>
+                          <span className="text-sm font-semibold text-stone-400 line-through">
+                            S/ {origPrice}
+                          </span>
+                        </div>
+
+                        {/* Presentación seleccionable */}
+                        <div className="space-y-1.5 pt-2">
+                          <div className="text-[10px] font-black uppercase tracking-wider text-stone-500">
+                            PRESENTACIÓN
+                          </div>
+                          <div className="border-2 border-emerald-800 bg-emerald-50/50 rounded-2xl p-3 text-center cursor-pointer shadow-2xs">
+                            <div className="font-bold text-xs text-stone-900">
+                              {p.unidad_medida || 'Presentación Estándar'}
+                            </div>
+                            <div className="font-black text-xs text-emerald-900 mt-0.5">
+                              S/ {priceNum.toFixed(2)}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Descripción breve del producto */}
+                        <div className="text-xs text-stone-600 font-medium leading-relaxed bg-stone-50 p-3 rounded-xl border border-stone-100">
+                          {p.descripcion || `${p.nombre} con calidad y frescura garantizada bajo estándares Mass PEPS. Ahorro insuperable para tu canasta familiar.`}
+                        </div>
+
+                        {/* Barra de Stock en Tienda */}
+                        <div className="space-y-1.5 pt-1">
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span className="text-stone-600">
+                              Stock en {branch?.nombre?.replace('Tienda Mass - ', '') || 'Huancayo'}
+                            </span>
+                            <span className="text-emerald-800 font-black">
+                              {stock} disponibles
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 bg-stone-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-emerald-800 rounded-full transition-all duration-300"
+                              style={{ width: `${Math.min(100, Math.max(15, (stock / 80) * 100))}%` }}
+                            ></div>
+                          </div>
+                        </div>
+
+                        {/* Selector de Cantidad y Botón de Agregar al Carrito */}
+                        <div className="flex items-center gap-3 pt-3">
+                          <div className="flex items-center border border-stone-200 rounded-2xl bg-stone-50 px-3 py-2 shrink-0">
+                            <button
+                              onClick={() => setModalQty(Math.max(1, modalQty - 1))}
+                              className="text-stone-500 hover:text-stone-900 font-black px-2 text-sm"
+                            >
+                              -
+                            </button>
+                            <span className="text-sm font-black text-stone-900 w-7 text-center">
+                              {modalQty}
+                            </span>
+                            <button
+                              onClick={() => setModalQty(modalQty + 1)}
+                              className="text-stone-500 hover:text-stone-900 font-black px-2 text-sm"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <button
+                            onClick={() => {
+                              onAddToCart(p, modalQty);
+                              setSelectedProductModal(null);
+                            }}
+                            disabled={stock <= 0}
+                            className="flex-1 py-3 bg-[#ff7332] hover:bg-[#ea5d1e] text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition flex items-center justify-center gap-2 active:scale-95 disabled:bg-stone-200 disabled:text-stone-400 disabled:cursor-not-allowed"
+                          >
+                            <span>🛒</span>
+                            <span>Agregar al Carrito • S/ {subtotal}</span>
+                          </button>
+                        </div>
+
+                        {/* NOTA: Envío Express y Retiro Gratis Magdalena omitidos a petición del usuario */}
+
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 2. CHECKOUT CLIENTE CON DIRECCIÓN AUTOCOMPLETADA
+    // ==========================================
+    function CheckoutCliente({ branch, cart, client, onClearCart, onBack, onOrderPlaced }) {
+      const [tipoEntrega, setTipoEntrega] = useState('DELIVERY');
+      const [metodoPago, setMetodoPago] = useState('YAPE');
+
+      // Toma automáticamente la dirección que guardó el cliente al registrarse o en su perfil
+      const [direccion, setDireccion] = useState(() => client?.direccion_completa || 'Jr. Puno 345, Huancayo');
+      const [referencia, setReferencia] = useState(() => client?.referencia || 'Frente a la Plaza Huamanmarca');
+      const [lat, setLat] = useState(() => parseFloat(client?.latitud || -12.0691));
+      const [lng, setLng] = useState(() => parseFloat(client?.longitud || -75.2092));
+      const [distanceKm, setDistanceKm] = useState(0.8);
+      const [isSubmitting, setIsSubmitting] = useState(false);
+      const [error, setError] = useState('');
+
+      const presets = [
+        { name: 'Mi Domicilio Registrado', dist: 0.8, dir: client?.direccion_completa || 'Jr. Puno 345, Huancayo', lat: -12.0691, lng: -75.2092 },
+        { name: 'Huancayo Centro (0.8 km)', dist: 0.8, dir: 'Jr. Puno 345, Huancayo', lat: -12.0691, lng: -75.2092 },
+        { name: 'San Carlos (1.8 km)', dist: 1.8, dir: 'Av. San Carlos 1120', lat: -12.0621, lng: -75.1985 },
+        { name: 'El Tambo (3.5 km)', dist: 3.5, dir: 'Av. Huancavelica 1450, El Tambo', lat: -12.0530, lng: -75.2180 },
+        { name: 'Jauja (42 km - Fuera Cobertura)', dist: 42.0, dir: 'Carretera Central, Jauja', lat: -11.7750, lng: -75.4960 }
+      ];
+
+      const inCoverage = distanceKm <= (branch?.radio_cobertura_km || 5.0);
+      const costoEnvio = (tipoEntrega === 'DELIVERY' && inCoverage) ? parseFloat((4.00 + Math.max(0, distanceKm - 1) * 1.50).toFixed(2)) : 0.00;
+      const totalMercaderia = cart.reduce((acc, i) => acc + (parseFloat(i.producto.precio_venta) * i.cantidad), 0);
+      const totalFinal = totalMercaderia + costoEnvio;
+
+      const handleConfirm = async () => {
+        if (cart.length === 0) return setError('La canasta está vacía');
+        if (tipoEntrega === 'DELIVERY' && !inCoverage) {
+          return setError(`Ubicación fuera del radio de entrega (${distanceKm} km > ${branch?.radio_cobertura_km} km)`);
+        }
+
+        setIsSubmitting(true);
+        setError('');
+        try {
+          const payload = {
+            sucursal_id: branch.id,
+            cliente_id: client?.id || 1,
+            tipo_entrega: tipoEntrega,
+            metodo_pago: metodoPago,
+            items: cart.map(i => ({ producto_id: i.producto.id, cantidad: i.cantidad })),
+            delivery_info: tipoEntrega === 'DELIVERY' ? {
+              direccion_completa: direccion,
+              referencia: referencia,
+              latitud: lat,
+              longitud: lng
+            } : null
+          };
+          const res = await api.post('/pedidos', payload);
+          onClearCart();
+          onOrderPlaced(res.data);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setIsSubmitting(false);
+        }
+      };
+
+      return (
+        <div className="space-y-6">
+          <button onClick={onBack} className="text-xs font-bold text-stone-600 hover:text-stone-900">← Volver al catálogo</button>
+
+          {error && <div className="p-4 bg-red-50 text-red-700 text-xs rounded-2xl border font-bold">{error}</div>}
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="lg:col-span-7 space-y-5">
+              <div className="bg-white p-5 rounded-2xl border space-y-3 shadow-sm">
+                <h3 className="text-xs font-extrabold text-stone-900 uppercase">1. Modalidad de Entrega</h3>
+                <div className="grid grid-cols-2 gap-3 text-xs">
+                  <button onClick={() => setTipoEntrega('DELIVERY')} className={`p-3 rounded-xl border font-bold ${tipoEntrega === 'DELIVERY' ? 'border-amber-400 bg-amber-50' : ''}`}>🛵 Delivery Express a Domicilio</button>
+                  <button onClick={() => setTipoEntrega('RETIRO_TIENDA')} className={`p-3 rounded-xl border font-bold ${tipoEntrega === 'RETIRO_TIENDA' ? 'border-amber-400 bg-amber-50' : ''}`}>🏬 Retiro en Tienda Mass</button>
+                </div>
+              </div>
+
+              {tipoEntrega === 'DELIVERY' && (
+                <div className="bg-white p-5 rounded-2xl border space-y-3 shadow-sm">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xs font-extrabold text-stone-900 uppercase">2. Dirección de Entrega en Huancayo</h3>
+                    {client?.direccion_completa && (
+                      <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded">
+                        ✓ Autocompletada de tu Perfil
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Selector rápido */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    {presets.map((p, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => { setDistanceKm(p.dist); setDireccion(p.dir); setLat(p.lat); setLng(p.lng); }}
+                        className={`p-2 rounded-lg border text-left transition ${direccion === p.dir ? 'border-amber-400 bg-amber-50 font-bold text-amber-950' : 'bg-white'}`}
+                      >
+                        <div className="truncate font-semibold">{p.name}</div>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Dirección Exacta:</label>
+                    <input
+                      type="text"
+                      value={direccion}
+                      onChange={e => setDireccion(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl text-xs font-semibold"
+                      placeholder="Ej: Jr. Puno 345, Huancayo"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">Referencia:</label>
+                    <input
+                      type="text"
+                      value={referencia}
+                      onChange={e => setReferencia(e.target.value)}
+                      className="w-full p-2.5 border rounded-xl text-xs font-medium"
+                      placeholder="Ej: Frente al parque Huamanmarca"
+                    />
+                  </div>
+
+                  <div className="flex justify-between text-xs p-3 bg-stone-50 rounded-xl border">
+                    <span>Distancia calculada: <strong>{distanceKm} km</strong></span>
+                    <span className={inCoverage ? 'text-emerald-600 font-bold' : 'text-red-600 font-bold'}>
+                      {inCoverage ? '✓ Dentro del Radio de Entrega' : '✕ Fuera de Cobertura'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              <div className="bg-white p-5 rounded-2xl border space-y-3 shadow-sm">
+                <h3 className="text-xs font-extrabold text-stone-900 uppercase">3. Método de Pago</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold text-center">
+                  {['YAPE', 'PLIN', 'TARJETA', 'EFECTIVO_CONTRA_ENTREGA'].map(m => (
+                    <button key={m} onClick={() => setMetodoPago(m)} className={`p-3 rounded-xl border ${metodoPago === m ? 'border-mass-red bg-red-50 text-mass-red' : ''}`}>
+                      {m === 'EFECTIVO_CONTRA_ENTREGA' ? 'Contra Entrega' : m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="lg:col-span-5">
+              <div className="bg-white p-6 rounded-3xl border shadow-sm sticky top-24 space-y-4">
+                <h3 className="text-sm font-extrabold text-stone-900 pb-2 border-b">Resumen de Compra</h3>
+                <div className="space-y-2 text-xs max-h-48 overflow-y-auto custom-scroll">
+                  {cart.map(i => (
+                    <div key={i.producto.id} className="flex justify-between">
+                      <span>{i.cantidad}x {i.producto.nombre}</span>
+                      <strong>S/. {(parseFloat(i.producto.precio_venta) * i.cantidad).toFixed(2)}</strong>
+                    </div>
+                  ))}
+                </div>
+                <div className="pt-3 border-t space-y-1.5 text-xs">
+                  <div className="flex justify-between text-stone-500"><span>Subtotal (sin IGV):</span><span>S/. {(totalMercaderia / 1.18).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>IGV (18% Perú):</span><span>S/. {(totalMercaderia - (totalMercaderia / 1.18)).toFixed(2)}</span></div>
+                  <div className="flex justify-between text-stone-500"><span>Costo Envío:</span><span>S/. {costoEnvio.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-base font-extrabold pt-2 border-t text-mass-red">
+                    <span>Total a Pagar:</span><span>S/. {totalFinal.toFixed(2)}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleConfirm}
+                  disabled={isSubmitting || (tipoEntrega === 'DELIVERY' && !inCoverage)}
+                  className="w-full py-3.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-2xl text-xs uppercase shadow transition disabled:opacity-40"
+                >
+                  {isSubmitting ? 'Procesando Venta PEPS...' : 'Confirmar Pedido y Pagar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 3. REPORTE / HISTORIAL DE COMPRAS REALIZADAS
+    // ==========================================
+    function MisComprasCliente({ client, onTrackDelivery, onConfirmPickup, onBackToStore }) {
+      const [pedidos, setPedidos] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      const loadOrders = () => {
+        if (!client?.id) return;
+        setLoading(true);
+        api.get(`/pedidos?cliente_id=${client.id}`)
+          .then(res => setPedidos(res.data || []))
+          .finally(() => setLoading(false));
+      };
+
+      useEffect(() => { loadOrders(); }, [client]);
+
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Reporte de Mis Compras Realizadas</h1>
+              <p className="text-xs text-stone-500">
+                Historial de pedidos de <strong className="text-stone-900">{client?.nombres} {client?.apellidos}</strong> con estado y seguimiento en vivo.
+              </p>
+            </div>
+            <button onClick={onBackToStore} className="px-4 py-2 bg-stone-950 text-white rounded-xl text-xs font-bold shadow">
+              🛒 Ir a la Tienda
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="p-8 text-center text-xs font-bold text-stone-500 animate-pulse">Cargando tus compras...</div>
+          ) : pedidos.length > 0 ? (
+            <div className="space-y-4">
+              {pedidos.map(p => {
+                const isPending = p.estado_pedido === 'PENDIENTE';
+                const isPrep = p.estado_pedido === 'EN_PREPARACION';
+                const isEnRuta = p.estado_pedido === 'DESPACHADO' || p.estado_delivery === 'EN_RUTA';
+                const isEntregado = p.estado_pedido === 'ENTREGADO';
+
+                return (
+                  <div key={p.id} className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 hover:shadow-md transition">
+                    <div className="space-y-1.5 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-extrabold text-sm text-stone-950">{p.codigo_pedido}</span>
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                          isEntregado ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          isEnRuta ? 'bg-blue-100 text-blue-800 animate-pulse' :
+                          isPrep ? 'bg-purple-100 text-purple-800' : 'bg-amber-100 text-amber-800'
+                        }`}>
+                          {isEntregado ? '✓ ENTREGADO / FINALIZADO' : isEnRuta ? '🛵 EN RUTA (EN CAMINO)' : isPrep ? '📦 EN PREPARACIÓN' : '⏳ PENDIENTE'}
+                        </span>
+                      </div>
+
+                      <div className="text-xs text-stone-600 flex flex-wrap items-center gap-3">
+                        <span>📅 Fecha: <strong>{p.fecha_pedido}</strong></span>
+                        <span>🏬 Tienda: <strong>{p.sucursal_nombre}</strong></span>
+                        <span>💳 Pago: <strong>{p.metodo_pago}</strong></span>
+                        <span>Modalidad: <strong className="text-stone-900">{p.tipo_entrega}</strong></span>
+                      </div>
+
+                      {p.tipo_entrega === 'DELIVERY' && p.direccion_destino && (
+                        <div className="text-[11px] text-stone-500 flex items-center gap-1 pt-1">
+                          <span>📍 Destino:</span>
+                          <span className="font-medium text-stone-800">{p.direccion_destino}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row md:flex-col items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-stone-200">
+                      <div className="text-right">
+                        <div className="text-xs text-stone-400 font-semibold">Total Pagado:</div>
+                        <div className="text-lg font-extrabold text-mass-red">S/. {parseFloat(p.total).toFixed(2)}</div>
+                      </div>
+
+                      {isEntregado ? (
+                        <div className="flex flex-col sm:flex-row items-center gap-2">
+                          <div className="flex items-center gap-1 text-emerald-800 bg-emerald-50 border border-emerald-300 px-3 py-1.5 rounded-xl text-xs font-black">
+                            <span>✓ Compra Finalizada</span>
+                          </div>
+                          {p.tipo_entrega === 'DELIVERY' && (
+                            <button
+                              onClick={() => onTrackDelivery(p)}
+                              className="text-stone-500 hover:text-stone-800 text-[11px] font-bold underline"
+                            >
+                              Ver Ruta GPS
+                            </button>
+                          )}
+                        </div>
+                      ) : p.tipo_entrega === 'DELIVERY' ? (
+                        <button
+                          onClick={() => onTrackDelivery(p)}
+                          className="w-full sm:w-auto px-4 py-2 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                        >
+                          <span>🛵 Rastrear Delivery en Vivo</span>
+                          <span>➔</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (onConfirmPickup) onConfirmPickup(p);
+                            setTimeout(loadOrders, 500);
+                          }}
+                          className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-sm transition"
+                        >
+                          <span>🏬 Confirmar Retiro en Tienda</span>
+                          <span>➔</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
+              <span className="text-4xl">🛍️</span>
+              <h3 className="text-sm font-bold text-stone-900">Aún no has realizado compras</h3>
+              <p className="text-xs text-stone-500">Explora el catálogo de Tiendas Mass y aprovecha los precios de ahorro diario.</p>
+              <button onClick={onBackToStore} className="px-4 py-2 bg-mass-yellow text-stone-950 font-extrabold rounded-xl text-xs">
+                Ver Catálogo de Productos
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 4. SIMULACIÓN DE DELIVERY EN LA INTERFAZ DEL CLIENTE
+    // ==========================================
+    function RastreoDeliveryCliente({ order, branch, onDeliveryCompleted, onBackToOrders, onBackToStore }) {
+      const isAlreadyDelivered = order?.estado_pedido === 'ENTREGADO';
+      const [driverLat, setDriverLat] = useState(-12.0684);
+      const [driverLng, setDriverLng] = useState(-75.2100);
+      const [simulating, setSimulating] = useState(false);
+      const [progressPercent, setProgressPercent] = useState(() => isAlreadyDelivered ? 100 : 30);
+      const [orderStatus, setOrderStatus] = useState(() => order?.estado_pedido || 'DESPACHADO');
+
+      const destAddress = order?.direccion_destino || order?.delivery?.direccion_destino || 'Jr. Puno 345, Huancayo';
+      const storeName = order?.sucursal_nombre || branch?.nombre || 'Tienda Mass - Huancayo Centro';
+      const orderCode = order?.codigo_pedido || 'PED-MASS-001';
+
+      // Simulador de avance de la moto hacia el domicilio del cliente
+      useEffect(() => {
+        let timer = null;
+        if (simulating) {
+          let step = 0;
+          timer = setInterval(() => {
+            step++;
+            const pct = Math.min(100, 30 + (step * 10));
+            setProgressPercent(pct);
+
+            // Interpolación de coordenadas simulada en Huancayo
+            setDriverLat(-12.0684 + ((-12.0691 - -12.0684) * (step / 7)));
+            setDriverLng(-75.2100 + ((-75.2092 - -75.2100) * (step / 7)));
+
+            if (step >= 7) {
+              setSimulating(false);
+              clearInterval(timer);
+              setOrderStatus('ENTREGADO');
+
+              // Actualiza estado en MariaDB para que el reporte de compras lo muestre como FINALIZADO
+              if (order?.id) {
+                api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' })
+                  .then(() => {
+                    if (order) order.estado_pedido = 'ENTREGADO';
+                  })
+                  .catch(console.error);
+              }
+
+              // Muestra el mensaje de agradecimiento
+              if (onDeliveryCompleted) {
+                onDeliveryCompleted({ ...order, estado_pedido: 'ENTREGADO' });
+              }
+            }
+          }, 1200);
+        }
+        return () => { if (timer) clearInterval(timer); };
+      }, [simulating]);
+
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-extrabold">{orderCode}</span>
+                <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold">{orderStatus}</span>
+              </div>
+              <h1 className="text-xl font-extrabold text-stone-900 tracking-tight mt-1">
+                Seguimiento Satelital de tu Pedido en Tiempo Real
+              </h1>
+              <p className="text-xs text-stone-500">
+                Observa por dónde viene tu repartidor motorizado desde el almacén hasta tu domicilio.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSimulating(!simulating)}
+                className={`px-4 py-2 font-extrabold text-xs rounded-xl shadow transition flex items-center gap-2 ${
+                  simulating ? 'bg-red-600 text-white animate-pulse' : 'bg-mass-yellow hover:bg-amber-400 text-stone-950'
+                }`}
+              >
+                <span>{simulating ? '⏹ Detener Simulación' : '▶ Simular Avance del Repartidor (GPS)'}</span>
+              </button>
+              <button onClick={onBackToOrders} className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold rounded-xl">
+                Mis Compras
+              </button>
+            </div>
+          </div>
+
+          {/* Mapa Visual del Delivery */}
+          <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+            <div className="relative w-full h-80 bg-stone-900 rounded-2xl overflow-hidden p-5 text-white flex flex-col justify-between border border-stone-700 shadow-inner">
+              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]"></div>
+
+              {/* Pin Origen: Tienda Mass */}
+              <div className="relative z-10 flex items-center gap-2 bg-stone-800/90 backdrop-blur px-3 py-1.5 rounded-lg border border-stone-700 w-fit text-xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                <span>Tienda Despachadora: <strong className="text-amber-400">{storeName}</strong></span>
+              </div>
+
+              {/* Motorizado en Camino */}
+              <div
+                className="relative z-10 self-center flex flex-col items-center transition-all duration-1000"
+                style={{ transform: `translateX(${(progressPercent - 50) * 4}px)` }}
+              >
+                <div className="p-3 bg-mass-yellow text-stone-950 rounded-full text-2xl shadow-2xl border-2 border-white animate-bounce">
+                  🛵
+                </div>
+                <span className="text-[10px] bg-stone-950 text-amber-300 px-2 py-0.5 rounded font-extrabold mt-1 border border-stone-700">
+                  {simulating ? 'Motorizado en ruta (24 km/h)' : 'Motorizado Mass Express'}
+                </span>
+              </div>
+
+              {/* Pin Destino: Casa del Cliente */}
+              <div className="relative z-10 flex items-center justify-between bg-stone-800/90 backdrop-blur p-3 rounded-xl border border-stone-700 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-mass-red text-base">📍</span>
+                  <div>
+                    <div className="font-bold text-white">Tu Domicilio de Entrega:</div>
+                    <div className="text-[11px] text-stone-300">{destAddress}</div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-amber-400 font-extrabold text-sm">{simulating ? `${Math.max(2, Math.round(15 * (1 - progressPercent/100)))} min` : '~15 min'}</div>
+                  <div className="text-[10px] text-stone-400 font-medium">Tiempo estimado</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Timeline de Hitos del Pedido */}
+            <div className="grid grid-cols-4 gap-2 pt-2 text-center text-xs">
+              <div className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold">
+                <div className="text-base mb-1">✓</div>
+                <div>1. Pedido Recibido</div>
+              </div>
+              <div className="p-3 rounded-2xl border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold">
+                <div className="text-base mb-1">📦</div>
+                <div>2. Picking PEPS</div>
+              </div>
+              <div className={`p-3 rounded-2xl border font-bold ${
+                orderStatus === 'ENTREGADO' || progressPercent > 40 ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-amber-300 bg-amber-50 text-amber-900 animate-pulse'
+              }`}>
+                <div className="text-base mb-1">🛵</div>
+                <div>3. En Camino (Moto)</div>
+              </div>
+              <div className={`p-3 rounded-2xl border font-bold ${
+                orderStatus === 'ENTREGADO' ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-stone-200 text-stone-400'
+              }`}>
+                <div className="text-base mb-1">🏠</div>
+                <div>4. Entregado</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 5. MODAL MI PERFIL Y EDICIÓN DE DIRECCIÓN
+    // ==========================================
+    function PerfilClienteModal({ isOpen, client, onClose, onUpdated }) {
+      const [nombres, setNombres] = useState(client.nombres || '');
+      const [apellidos, setApellidos] = useState(client.apellidos || '');
+      const [telefono, setTelefono] = useState(client.telefono || '');
+      const [direccion, setDireccion] = useState(client.direccion_completa || 'Jr. Puno 345, Huancayo');
+      const [referencia, setReferencia] = useState(client.referencia || 'Frente a la Plaza Huamanmarca');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+
+      const presets = [
+        { name: 'Huancayo Centro', dir: 'Jr. Puno 345, Huancayo', ref: 'Plaza Huamanmarca' },
+        { name: 'San Carlos', dir: 'Av. San Carlos 1120, Huancayo', ref: 'Cerca a U. Continental' },
+        { name: 'El Tambo', dir: 'Av. Huancavelica 1450, El Tambo', ref: 'Parque Bolognesi' }
+      ];
+
+      const handleSave = async (e) => {
+        e.preventDefault();
+        setLoading(true);
+        setError('');
+        try {
+          const res = await api.put('/clientes/perfil', {
+            cliente_id: client.id,
+            nombres,
+            apellidos,
+            telefono,
+            direccion_completa: direccion,
+            referencia,
+            latitud: -12.0691,
+            longitud: -75.2092
+          });
+          onUpdated(res.data);
+        } catch (err) {
+          setError(err.message);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-3xl max-w-md w-full space-y-4 text-xs shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <span className="font-extrabold text-sm text-stone-900">Mi Perfil & Dirección Predeterminada</span>
+              <button onClick={onClose} className="font-bold text-stone-400">✕</button>
+            </div>
+
+            {error && <div className="p-3 bg-red-50 text-red-700 rounded-xl text-xs font-bold border">{error}</div>}
+
+            <form onSubmit={handleSave} className="space-y-3">
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-stone-700 text-[11px]">
+                Identificación: <strong>{client.tipo_documento} {client.numero_documento}</strong> ({client.email})
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold mb-1">Nombres:</label>
+                  <input type="text" value={nombres} onChange={e => setNombres(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Apellidos:</label>
+                  <input type="text" value={apellidos} onChange={e => setApellidos(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold mb-1">Teléfono Móvil:</label>
+                <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} className="w-full p-2 border rounded-lg" required />
+              </div>
+
+              <div className="pt-2 border-t">
+                <label className="block font-extrabold text-stone-900 mb-1">📍 Mi Dirección de Entrega (Huancayo):</label>
+                <div className="grid grid-cols-3 gap-1 mb-2">
+                  {presets.map((p, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => { setDireccion(p.dir); setReferencia(p.ref); }}
+                      className="p-1.5 bg-stone-100 hover:bg-stone-200 rounded text-[10px] font-bold text-stone-800 text-left truncate"
+                    >
+                      {p.name}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={direccion}
+                  onChange={e => setDireccion(e.target.value)}
+                  placeholder="Ej: Jr. Puno 345, Huancayo"
+                  className="w-full p-2 border rounded-lg font-bold text-stone-900 mb-2"
+                  required
+                />
+
+                <label className="block font-bold text-stone-700 mb-1">Referencia:</label>
+                <input
+                  type="text"
+                  value={referencia}
+                  onChange={e => setReferencia(e.target.value)}
+                  placeholder="Ej: Frente al parque Huamanmarca"
+                  className="w-full p-2 border rounded-lg"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-xl shadow-md transition text-xs uppercase"
+              >
+                {loading ? 'Guardando Cambios...' : 'Guardar Datos y Ubicación'}
+              </button>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 6. LOGIN Y REGISTRO DEL CLIENTE CON DIRECCIÓN INICIAL
+    // ==========================================
+    function LoginClienteModal({ isOpen, onClose, onLoginSuccess }) {
+      const [tab, setTab] = useState('login'); // 'login' | 'register'
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('123456');
+      const [tipoDoc, setTipoDoc] = useState('DNI');
+      const [numDoc, setNumDoc] = useState('');
+      const [nombres, setNombres] = useState('');
+      const [apellidos, setApellidos] = useState('');
+      const [telefono, setTelefono] = useState('');
+      const [direccion, setDireccion] = useState('Jr. Puno 345, Huancayo');
+      const [referencia, setReferencia] = useState('Frente a la Plaza Huamanmarca');
+      const [error, setError] = useState('');
+
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+        try {
+          const res = await api.post('/auth/login-client', { email, password });
+          onLoginSuccess(res.data.client || res.data.user, res.data.token);
+        } catch (err) {
+          setError(err.message);
+        }
+      };
+
+      const handleRegister = async (e) => {
+        e.preventDefault();
+        setError('');
+        if (tipoDoc === 'DNI' && !/^\d{8}$/.test(numDoc)) return setError('DNI debe tener exactamente 8 dígitos');
+        if (tipoDoc === 'PASAPORTE' && !/^[A-Za-z0-9]{6,12}$/.test(numDoc)) return setError('Pasaporte debe tener entre 6 y 12 caracteres');
+
+        try {
+          const res = await api.post('/auth/register-client', {
+            tipo_documento: tipoDoc,
+            numero_documento: numDoc,
+            nombres,
+            apellidos,
+            email,
+            password,
+            telefono,
+            direccion_completa: direccion,
+            referencia
+          });
+          onLoginSuccess(res.data.client, res.data.token);
+        } catch (err) {
+          setError(err.message);
+        }
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-3xl max-w-sm w-full space-y-4 text-xs shadow-2xl max-h-[90vh] overflow-y-auto custom-scroll">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <span className="font-extrabold text-sm text-stone-900">Portal del Cliente Mass</span>
+              <button onClick={onClose} className="font-bold text-stone-400">✕</button>
+            </div>
+
+            {error && <div className="p-3 bg-red-50 text-red-700 rounded-xl text-[11px] font-bold border border-red-200">{error}</div>}
+
+            <div className="flex border-b text-[11px] font-bold">
+              <button onClick={() => setTab('login')} className={`flex-1 pb-2 border-b-2 ${tab === 'login' ? 'border-amber-400 text-stone-900' : 'border-transparent text-stone-400'}`}>Iniciar Sesión</button>
+              <button onClick={() => setTab('register')} className={`flex-1 pb-2 border-b-2 ${tab === 'register' ? 'border-amber-400 text-stone-900' : 'border-transparent text-stone-400'}`}>Crear Cuenta</button>
+            </div>
+
+            {tab === 'login' ? (
+              <form onSubmit={handleLogin} className="space-y-3">
+                <div>
+                  <label className="block font-bold mb-1">Correo Electrónico:</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="juan.perez@gmail.com" className="w-full p-2 border rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Contraseña:</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                </div>
+                <button type="submit" className="w-full py-2.5 bg-mass-yellow text-stone-950 font-extrabold rounded-xl shadow">Ingresar</button>
+
+                <div className="pt-2 text-[10px] text-stone-500 space-y-1">
+                  <div className="font-bold">Cliente de Prueba Rápido (Clave: 123456):</div>
+                  <button
+                    type="button"
+                    onClick={() => { setEmail('juan.perez@gmail.com'); setPassword('123456'); }}
+                    className="w-full py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded border border-amber-200 font-bold"
+                  >
+                    👤 Juan Pérez (DNI) / Clave: 123456
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister} className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold mb-1">Tipo Doc:</label>
+                    <select value={tipoDoc} onChange={e => setTipoDoc(e.target.value)} className="w-full p-2 border rounded-lg font-bold">
+                      <option value="DNI">DNI (8 d.)</option>
+                      <option value="PASAPORTE">Pasaporte</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-1">N° Documento:</label>
+                    <input type="text" value={numDoc} onChange={e => setNumDoc(e.target.value.trim())} className="w-full p-2 border rounded-lg" required />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block font-bold mb-1">Nombres:</label>
+                    <input type="text" value={nombres} onChange={e => setNombres(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-1">Apellidos:</label>
+                    <input type="text" value={apellidos} onChange={e => setApellidos(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Teléfono:</label>
+                  <input type="tel" value={telefono} onChange={e => setTelefono(e.target.value)} placeholder="987654321" className="w-full p-2 border rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">📍 Dirección de Entrega (Huancayo):</label>
+                  <input type="text" value={direccion} onChange={e => setDireccion(e.target.value)} placeholder="Ej: Jr. Puno 345, Huancayo" className="w-full p-2 border rounded-lg font-semibold" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Referencia:</label>
+                  <input type="text" value={referencia} onChange={e => setReferencia(e.target.value)} placeholder="Ej: Frente al parque" className="w-full p-2 border rounded-lg" />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Correo:</label>
+                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                </div>
+                <div>
+                  <label className="block font-bold mb-1">Contraseña:</label>
+                  <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border rounded-lg" required />
+                </div>
+                <button type="submit" className="w-full py-2.5 bg-mass-red text-white font-extrabold rounded-xl shadow">Crear Cuenta Cliente</button>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 7. MODAL DE AGRADECIMIENTO POR SU COMPRA (DELIVERY & RETIRO EN TIENDA)
+    // ==========================================
+    function ModalAgradecimientoCompra({ isOpen, onClose, onViewOrders, order, tipoEntrega, branch }) {
+      if (!isOpen) return null;
+
+      const isDelivery = tipoEntrega === 'DELIVERY';
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl max-w-md w-full text-center space-y-4 shadow-2xl border-2 border-amber-300">
+            <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl shadow-inner animate-bounce">
+              {isDelivery ? '🛵' : '🏬'}
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full border border-emerald-300">
+                {isDelivery ? '✓ Entrega Finalizada con Éxito' : '✓ Compra Confirmada para Retiro'}
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-stone-900 tracking-tight pt-1">
+                ¡Muchas Gracias por su Compra!
+              </h2>
+              <p className="text-xs text-stone-600">
+                {isDelivery
+                  ? 'Su pedido ha llegado a su destino y ha sido entregado en la puerta de su domicilio.'
+                  : 'Su pedido ha sido generado con éxito y ya está confirmado para retiro en tienda.'}
+              </p>
+            </div>
+
+            {/* Ficha Resumen del Pedido */}
+            <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-left text-xs space-y-2">
+              <div className="flex justify-between items-center pb-2 border-b border-stone-200">
+                <span className="text-stone-500 font-bold">Código de Pedido:</span>
+                <span className="font-mono font-black text-mass-red text-sm">{order?.codigo_pedido || 'PED-MASS-001'}</span>
+              </div>
+
+              <div className="flex justify-between items-center">
+                <span className="text-stone-500 font-bold">Modalidad:</span>
+                <span className="font-extrabold text-stone-900">{isDelivery ? '🛵 Delivery Express a Domicilio' : '🏬 Retiro en Tienda Mass'}</span>
+              </div>
+
+              {isDelivery ? (
+                <div className="flex justify-between items-start">
+                  <span className="text-stone-500 font-bold shrink-0">Dirección de Entrega:</span>
+                  <span className="font-bold text-stone-800 text-right truncate max-w-[200px]">
+                    📍 {order?.direccion_destino || order?.delivery?.direccion_destino || 'Jr. Puno 345, Huancayo'}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex justify-between items-start">
+                  <span className="text-stone-500 font-bold shrink-0">Tienda de Retiro:</span>
+                  <span className="font-bold text-stone-800 text-right">
+                    📍 {branch?.nombre || order?.sucursal_nombre || 'Tienda Mass - Giráldez Huancayo'}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-2 border-t border-stone-200">
+                <span className="text-stone-500 font-bold">Estado en Reporte:</span>
+                <span className="font-black text-emerald-700 bg-emerald-100 px-2.5 py-0.5 rounded text-[10px]">
+                  ✓ FINALIZADO / ENTREGADO
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-950 font-medium">
+              💡 <strong>Ahorro Mass Garantizado:</strong> Sus productos fueron empacados cumpliendo la estricta rotación de lotes PEPS. ¡Esperamos que los disfrute!
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+              <button
+                onClick={onViewOrders}
+                className="flex-1 py-3 bg-stone-950 hover:bg-stone-800 text-amber-300 font-extrabold rounded-xl text-xs shadow transition flex items-center justify-center gap-1.5"
+              >
+                <span>📋 Ver en Mis Compras</span>
+              </button>
+              <button
+                onClick={onClose}
+                className="flex-1 py-3 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-extrabold rounded-xl text-xs shadow transition"
+              >
+                🛒 Seguir Comprando
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<PortalCliente />);
+  </script>
+</body>
+</html>

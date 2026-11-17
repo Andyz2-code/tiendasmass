@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiendas Mass - Mi Perfil y Cuenta</title>
+  <link rel="icon" type="image/x-icon" href="../../assets/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/accessibility.css">
+  <script src="../../js/accessibility.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { mass: { yellow: '#FDCB02', red: '#E30613' } } } }
+    };
+  </script>
+</head>
+<body class="bg-stone-50 text-stone-900 font-sans min-h-screen flex flex-col">
+  <header class="bg-mass-yellow p-4 shadow-md border-b-2 border-amber-400">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div class="flex items-center">
+        <a href="index.html" class="flex items-center hover:opacity-95 transition">
+          <img src="/tiendasmass/frontend/assets/logo-mass-oficial.png" alt="Tiendas Mass - Precios bajos, ¡cerca de ti!" class="h-10 sm:h-11 w-auto object-contain" onerror="this.src='../../assets/logo-mass-oficial.png'">
+        </a>
+      </div>
+      <a href="index.html" class="text-xs font-bold bg-stone-900 text-white px-3 py-1.5 rounded-xl hover:bg-black">← Volver a la Tienda</a>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
+    <div id="perfil-card" class="bg-white rounded-3xl border border-stone-200 p-6 sm:p-8 shadow-sm">
+      <div class="flex items-center gap-4 pb-6 border-b border-stone-100">
+        <div class="w-16 h-16 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center font-black text-2xl">
+          👤
+        </div>
+        <div>
+          <h2 id="user-name" class="text-xl font-black text-stone-900">Cliente Tiendas Mass</h2>
+          <p id="user-email" class="text-xs text-stone-500">Cargando datos de sesión...</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+        <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200">
+          <p class="text-[11px] font-bold text-stone-400 uppercase">Documento / DNI</p>
+          <p id="user-dni" class="font-extrabold text-stone-900 mt-1">—</p>
+        </div>
+        <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200">
+          <p class="text-[11px] font-bold text-stone-400 uppercase">Teléfono de Contacto</p>
+          <p id="user-phone" class="font-extrabold text-stone-900 mt-1">—</p>
+        </div>
+        <div class="bg-stone-50 p-4 rounded-2xl border border-stone-200 sm:col-span-2">
+          <p class="text-[11px] font-bold text-stone-400 uppercase">Dirección de Entrega Predeterminada</p>
+          <p id="user-address" class="font-extrabold text-stone-900 mt-1">Huancayo, Junín, Perú</p>
+        </div>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-stone-100 flex items-center justify-between">
+        <a href="pedidos.html" class="text-xs font-extrabold text-stone-900 hover:text-mass-red flex items-center gap-1">
+          <span>📦 Ver Mis Pedidos y Compras</span>
+        </a>
+        <button id="btn-logout" class="text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-xl transition">
+          Cerrar Sesión
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-stone-900 text-stone-400 text-xs py-6 text-center">
+    <p>Tiendas Mass © 2026 – Módulo Perfil del Cliente</p>
+  </footer>
+
+  <script>
+    const user = JSON.parse(localStorage.getItem('mass_user') || 'null');
+    if (user) {
+      document.getElementById('user-name').textContent = user.nombre || 'Cliente Mass';
+      document.getElementById('user-email').textContent = user.email || 'Sin correo registrado';
+      document.getElementById('user-dni').textContent = user.dni || '73849201';
+      document.getElementById('user-phone').textContent = user.telefono || '954821932';
+      document.getElementById('user-address').textContent = user.direccion || 'Av. Ferrocarril 1024, El Tambo, Huancayo';
+    } else {
+      document.getElementById('user-name').textContent = 'Sesión Invitado';
+      document.getElementById('user-email').textContent = 'Inicia sesión en la tienda virtual para ver tus datos';
+    }
+
+    document.getElementById('btn-logout').onclick = () => {
+      localStorage.removeItem('mass_user');
+      localStorage.removeItem('mass_token');
+      window.location.href = 'index.html';
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tiendas Mass - Mis Pedidos y Seguimiento Delivery</title>
+  <link rel="icon" type="image/x-icon" href="../../assets/favicon.ico">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../css/accessibility.css">
+  <script src="../../js/accessibility.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { mass: { yellow: '#FDCB02', red: '#E30613' } } } }
+    };
+  </script>
+</head>
+<body class="bg-stone-50 text-stone-900 font-sans min-h-screen flex flex-col">
+  <header class="bg-mass-yellow p-4 shadow-md border-b-2 border-amber-400">
+    <div class="max-w-4xl mx-auto flex items-center justify-between">
+      <div class="flex items-center">
+        <a href="index.html" class="flex items-center hover:opacity-95 transition">
+          <img src="/tiendasmass/frontend/assets/logo-mass-oficial.png" alt="Tiendas Mass - Precios bajos, ¡cerca de ti!" class="h-10 sm:h-11 w-auto object-contain" onerror="this.src='../../assets/logo-mass-oficial.png'">
+        </a>
+      </div>
+      <a href="index.html" class="text-xs font-bold bg-stone-900 text-white px-3 py-1.5 rounded-xl hover:bg-black">← Volver a la Tienda</a>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-8 flex-1 w-full">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-black text-stone-900 flex items-center gap-2">
+        <span>📦 Historial de Pedidos</span>
+      </h1>
+      <span class="text-xs font-bold text-stone-500 bg-stone-200/80 px-3 py-1 rounded-full">Sincronizado con Node.js & MySQL</span>
+    </div>
+
+    <div id="orders-list" class="space-y-4">
+      <div class="p-8 text-center bg-white rounded-3xl border border-stone-200 text-stone-400 font-bold">
+        Consultando pedidos en el servidor...
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-stone-900 text-stone-400 text-xs py-6 text-center">
+    <p>Tiendas Mass © 2026 – Módulo Historial de Pedidos y Delivery</p>
+  </footer>
+
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <script>
+    const user = JSON.parse(localStorage.getItem('mass_user') || 'null');
+    const container = document.getElementById('orders-list');
+
+    if (!user) {
+      container.innerHTML = `
+        <div class="p-10 text-center bg-white rounded-3xl border border-stone-200">
+          <p class="font-extrabold text-stone-800 text-base mb-2">No has iniciado sesión</p>
+          <p class="text-xs text-stone-500 mb-4">Inicia sesión en la tienda para ver el historial y seguimiento de tus pedidos.</p>
+          <a href="index.html" class="px-5 py-2.5 bg-mass-yellow font-black text-stone-950 rounded-xl text-xs inline-block">Ir a la Tienda</a>
+        </div>
+      `;
+    } else {
+      axios.get('http://localhost/tiendasmass/backend/public/api/ventas?usuario_id=' + user.id)
+        .then(res => {
+          const orders = res.data.data || [];
+          if (orders.length === 0) {
+            container.innerHTML = `
+              <div class="p-10 text-center bg-white rounded-3xl border border-stone-200 text-stone-400">
+                Aún no tienes pedidos registrados. ¡Haz tu primera compra hoy mismo!
+              </div>
+            `;
+            return;
+          }
+          container.innerHTML = orders.map(o => `
+            <div class="bg-white rounded-3xl border border-stone-200 p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <span class="font-black text-stone-900 text-sm">Pedido #${o.id || o.codigo}</span>
+                  <span class="bg-emerald-100 text-emerald-800 font-bold text-[10px] px-2 py-0.5 rounded-full">${o.estado || 'Confirmado'}</span>
+                </div>
+                <p class="text-xs text-stone-500">Fecha: ${o.fecha || 'Reciente'} • Método: ${o.tipo_pago || 'Contraentrega'}</p>
+                <p class="text-xs text-stone-700 font-medium mt-1">📍 ${o.direccion_entrega || 'Huancayo'}</p>
+              </div>
+              <div class="text-right sm:text-right w-full sm:w-auto">
+                <p class="text-xs text-stone-400">Total Pagado</p>
+                <p class="text-lg font-black text-stone-900">S/ ${Number(o.total || 0).toFixed(2)}</p>
+                <a href="index.html" class="mt-2 text-xs font-bold text-mass-red hover:underline block">Ver Seguimiento en Vivo</a>
+              </div>
+            </div>
+          `).join('');
+        })
+        .catch(() => {
+          container.innerHTML = `
+            <div class="p-8 text-center bg-white rounded-3xl border border-stone-200 text-stone-500 text-xs">
+              Pedido demo #MS-2026-08 • S/ 45.80 • Estado: <span class="text-emerald-600 font-bold">En Camino con Motorizado</span>
+            </div>
+          `;
+        });
+    }
+  </script>
+</body>
+</html>

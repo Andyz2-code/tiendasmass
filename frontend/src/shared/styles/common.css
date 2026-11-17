@@ -1,0 +1,42 @@
+/* ==========================================================================
+   TIENDAS MASS - Estilos Comunes y Utilidades Visuales
+   Ubicación: frontend/src/shared/styles/common.css
+   ========================================================================== */
+
+/* Colores corporativos Tiendas Mass */
+:root {
+  --mass-yellow: #FDCB02;
+  --mass-red: #E30613;
+  --mass-dark: #1C1917;
+}
+
+/* Scrollbar moderno */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Transiciones suaves */
+.transition-mass {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animación de entrada modal */
+@keyframes massFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-mass-modal {
+  animation: massFadeIn 0.15s ease-out forwards;
+}

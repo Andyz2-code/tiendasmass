@@ -1,0 +1,19 @@
+/* ==========================================================================
+   TIENDAS MASS - Estilos Específicos del Portal Cliente
+   Ubicación: frontend/src/interfaz-cliente/styles/cliente.css
+   ========================================================================== */
+@import '../../shared/styles/logo.css';
+
+.store-hero-banner {
+  border-radius: 1.5rem;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.product-card-hover {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease;
+}
+.product-card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 20px -5px rgba(227, 6, 19, 0.15);
+}

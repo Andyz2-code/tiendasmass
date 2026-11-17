@@ -1,0 +1,25 @@
+DirectoryIndex frontend/index.html frontend/index.php
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /tiendasmass/
+
+    # 1. Rutas de API REST hacia el Front Controller de PHP
+    RewriteRule ^api/(.*)$ backend/public/index.php [QSA,L]
+
+    # 2. Rutas directas a carpetas físicas del sistema
+    RewriteRule ^(backend|frontend|database|docs)/ - [L]
+
+    # 3. Mapeo de Interfaces Web (Cliente, Administrador, Supervisor)
+    RewriteRule ^admin/?$ frontend/admin.html [L]
+    RewriteRule ^supervisor/?$ frontend/supervisor.html [L]
+    RewriteRule ^catalogo/?$ frontend/src/interfaz-cliente/catalogo.html [L]
+    RewriteRule ^carrito/?$ frontend/src/interfaz-cliente/carrito.html [L]
+    RewriteRule ^perfil/?$ frontend/src/interfaz-cliente/perfil.html [L]
+    RewriteRule ^pedidos/?$ frontend/src/interfaz-cliente/pedidos.html [L]
+
+    # 4. Mapeo de recursos estáticos si se piden desde la raíz
+    RewriteCond %{DOCUMENT_ROOT}/tiendasmass/frontend/$1 -f
+    RewriteRule ^(.*)$ frontend/$1 [L]
+</IfModule>

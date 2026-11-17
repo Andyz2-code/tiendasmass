@@ -1,0 +1,18 @@
+/* ==========================================================================
+   TIENDAS MASS - Estilos Específicos del Administrador
+   Ubicación: frontend/src/interfaz-administrador/styles/admin.css
+   ========================================================================== */
+@import '../../shared/styles/logo.css';
+
+.admin-card-metric {
+  background: #ffffff;
+  border: 1px solid #e7e5e4;
+  border-radius: 1rem;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+.admin-badge-role {
+  letter-spacing: 0.05em;
+  font-weight: 800;
+}

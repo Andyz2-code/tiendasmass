@@ -1,0 +1,143 @@
+/* ==========================================================================
+   TIENDAS MASS - Motor de Accesibilidad Web (WCAG 2.1 / 2.2 AA & AAA)
+   Ruta: /frontend/css/accessibility.css
+   ========================================================================== */
+
+/* 1. Escalado Tipográfico Global sobre la Raíz HTML (Compatible con Tailwind rem) */
+html.a11y-font-large {
+  font-size: 18.4px !important; /* +15% sobre la base de 16px */
+}
+
+html.a11y-font-xlarge {
+  font-size: 20px !important; /* +25% sobre la base de 16px */
+}
+
+/* 2. Modo Escala de Grises (Aislado del panel de control para preservar visibilidad y posición fija) */
+body.a11y-grayscale > *:not(#a11y-widget-panel):not([data-a11y-keep]):not(#a11y-widget-root) {
+  filter: grayscale(100%) !important;
+}
+
+body.a11y-grayscale #a11y-widget-panel {
+  filter: none !important;
+}
+
+/* 3. Modo Alto Contraste (Fondo Negro #000 + Textos de Alta Luminancia) */
+body.a11y-high-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+body.a11y-high-contrast *:not(#a11y-widget-panel):not(#a11y-widget-panel *) {
+  border-color: #555555 !important;
+}
+
+body.a11y-high-contrast header,
+body.a11y-high-contrast nav,
+body.a11y-high-contrast footer,
+body.a11y-high-contrast section,
+body.a11y-high-contrast aside,
+body.a11y-high-contrast main,
+body.a11y-high-contrast .bg-white,
+body.a11y-high-contrast .bg-stone-50,
+body.a11y-high-contrast .bg-stone-100,
+body.a11y-high-contrast .bg-stone-200,
+body.a11y-high-contrast .bg-stone-800,
+body.a11y-high-contrast .bg-stone-900 {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border-color: #ffff00 !important;
+}
+
+body.a11y-high-contrast h1,
+body.a11y-high-contrast h2,
+body.a11y-high-contrast h3,
+body.a11y-high-contrast h4,
+body.a11y-high-contrast strong,
+body.a11y-high-contrast b,
+body.a11y-high-contrast .text-stone-900,
+body.a11y-high-contrast .text-stone-800 {
+  color: #ffff00 !important;
+}
+
+body.a11y-high-contrast p,
+body.a11y-high-contrast span,
+body.a11y-high-contrast div,
+body.a11y-high-contrast td,
+body.a11y-high-contrast th,
+body.a11y-high-contrast label {
+  color: #ffffff !important;
+}
+
+body.a11y-high-contrast .text-stone-400,
+body.a11y-high-contrast .text-stone-500,
+body.a11y-high-contrast .text-stone-600 {
+  color: #e2e8f0 !important;
+}
+
+body.a11y-high-contrast .text-mass-red,
+body.a11y-high-contrast .text-red-500,
+body.a11y-high-contrast .text-red-600 {
+  color: #ff5555 !important;
+  font-weight: 800 !important;
+}
+
+body.a11y-high-contrast input,
+body.a11y-high-contrast select,
+body.a11y-high-contrast textarea {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border: 2px solid #ffff00 !important;
+}
+
+body.a11y-high-contrast button:not([data-a11y-keep]) {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border: 2px solid #ffffff !important;
+  font-weight: 900 !important;
+}
+
+body.a11y-high-contrast button:hover:not([data-a11y-keep]) {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+body.a11y-high-contrast a {
+  color: #00ffff !important;
+  text-decoration: underline !important;
+}
+
+body.a11y-high-contrast img {
+  filter: contrast(125%) !important;
+}
+
+/* 4. Resaltado de Foco por Teclado (Visible con Tab) */
+body.a11y-high-focus *:focus {
+  outline: 4px solid #E30613 !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(253, 203, 2, 0.9) !important;
+}
+
+/* 5. Aislamiento del Panel Flotante de Accesibilidad (No se distorsiona con Alto Contraste) */
+#a11y-widget-panel {
+  background-color: #ffffff !important;
+  color: #1c1917 !important;
+  border: 2px solid #d6d3d1 !important;
+}
+
+#a11y-widget-panel * {
+  border-color: #e7e5e4 !important;
+}
+
+#a11y-widget-panel h3 {
+  color: #0c0a09 !important;
+}
+
+#a11y-widget-panel p,
+#a11y-widget-panel label,
+#a11y-widget-panel span {
+  color: #44403c !important;
+}
+
+#a11y-widget-panel button[data-a11y-keep] {
+  border-width: 1px !important;
+}
