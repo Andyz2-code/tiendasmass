@@ -43,3 +43,10 @@ tiendasmass/
    - **Panel Administrativo:** `http://localhost/tiendasmass/admin`
    - **API JSON de Productos:** `http://localhost/tiendasmass/backend/public/api/productos`
 Actualización de registro
+
+
+
+
+
+
+......
