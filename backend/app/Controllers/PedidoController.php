@@ -133,15 +133,20 @@ class PedidoController {
                    p.requiere_traslado, p.metodo_pago, p.estado_pedido, p.es_invitado,
                    p.contacto_email, p.contacto_telefono,
                    s.nombre AS sucursal_nombre, s.direccion AS sucursal_direccion, s.telefono AS sucursal_telefono,
-                   d.direccion_destino, d.estado_delivery, d.repartidor_nombre, d.tiempo_estimado_min
+                   s.latitud AS sucursal_lat, s.longitud AS sucursal_lng,
+                   d.direccion_destino, d.referencia_destino, d.latitud_destino, d.longitud_destino,
+                   d.distancia_km, d.estado_delivery, d.repartidor_nombre, d.repartidor_telefono,
+                   d.latitud_actual_repartidor, d.longitud_actual_repartidor,
+                   d.tiempo_estimado_min, d.updated_at AS delivery_updated_at
             FROM pedidos p
             JOIN sucursales s ON p.sucursal_id = s.id
             LEFT JOIN deliveries d ON d.pedido_id = p.id
-            WHERE p.codigo_pedido = :cod OR p.id = :id_num
+            WHERE p.codigo_pedido = :cod OR p.token_seguimiento = :tok OR p.id = :id_num
             LIMIT 1
         ");
         $stmt->execute([
             ':cod'    => trim($codigo),
+            ':tok'    => trim($codigo),
             ':id_num' => is_numeric($codigo) ? (int)$codigo : 0
         ]);
         $pedido = $stmt->fetch(PDO::FETCH_ASSOC);

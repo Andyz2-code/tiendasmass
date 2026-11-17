@@ -63,10 +63,14 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->postMapping('/ventas', 'PedidoController@store');
     $api->putMapping('/pedidos/{id}/estado', 'PedidoController@updateStatus');
 
-    // 6. Mapeo de Delivery y Google Maps
+    // 6. Mapeo de Delivery, Google Maps y App Mass Rider
     $api->postMapping('/delivery/quote', 'DeliveryController@quote');
     $api->getMapping('/delivery/track/{pedido_id}', 'DeliveryController@track');
     $api->postMapping('/delivery/update-location', 'DeliveryController@updateLocation');
+    $api->postMapping('/riders/login', 'DeliveryController@riderLogin');
+    $api->getMapping('/riders/orders', 'DeliveryController@riderOrders');
+    $api->postMapping('/riders/orders/{id}/status', 'DeliveryController@riderUpdateOrderStatus');
+    $api->getMapping('/riders/settlement', 'DeliveryController@riderSettlement');
 
     // 7. Mapeo de Auditorías y Conteos Físicos Cíclicos
     $api->getMapping('/conteos', 'ConteoCiclicoController@index', ['jwt', 'role:Administrador,Supervisor']);

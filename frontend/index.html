@@ -18,6 +18,10 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <!-- Socket.io & Leaflet para Seguimiento GPS en Tiempo Real -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -3155,21 +3159,218 @@ return (
     }
 
     // ==========================================
-    // 4. SIMULACIÓN DE DELIVERY EN LA INTERFAZ DEL CLIENTE
+    // 4. SEGUIMIENTO DE DELIVERY EN TIEMPO REAL (APP MASS RIDER <-> WEB)
     // ==========================================
     function RastreoDeliveryCliente({ order, branch, onDeliveryCompleted, onBackToOrders, onBackToStore }) {
       const isAlreadyDelivered = order?.estado_pedido === 'ENTREGADO';
-      const [driverLat, setDriverLat] = useState(-12.0684);
-      const [driverLng, setDriverLng] = useState(-75.2100);
+      const storeLat = parseFloat(order?.sucursal_lat || branch?.latitud || -12.0684);
+      const storeLng = parseFloat(order?.sucursal_lng || branch?.longitud || -75.2100);
+      const destLat = parseFloat(order?.latitud_destino || order?.delivery?.latitud_destino || -12.0691);
+      const destLng = parseFloat(order?.longitud_destino || order?.delivery?.longitud_destino || -75.2092);
+
+      const [driverLat, setDriverLat] = useState(() =>
+        order?.latitud_actual_repartidor ? parseFloat(order.latitud_actual_repartidor) : storeLat
+      );
+      const [driverLng, setDriverLng] = useState(() =>
+        order?.longitud_actual_repartidor ? parseFloat(order.longitud_actual_repartidor) : storeLng
+      );
+      const [hasLiveGps, setHasLiveGps] = useState(() =>
+        Boolean(order?.latitud_actual_repartidor && order?.longitud_actual_repartidor)
+      );
+      const [riderName, setRiderName] = useState(() => order?.repartidor_nombre || 'Motorizado Mass Express');
+      const [riderPhone, setRiderPhone] = useState(() => order?.repartidor_telefono || '');
+      const [speedKmh, setSpeedKmh] = useState(0);
+      const [lastGpsTime, setLastGpsTime] = useState(null);
+      const [socketConnected, setSocketConnected] = useState(false);
       const [simulating, setSimulating] = useState(false);
       const [progressPercent, setProgressPercent] = useState(() => isAlreadyDelivered ? 100 : 30);
       const [orderStatus, setOrderStatus] = useState(() => order?.estado_pedido || 'DESPACHADO');
 
+      const mapContainerRef = useRef(null);
+      const mapInstanceRef = useRef(null);
+      const riderMarkerRef = useRef(null);
+      const routeLineRef = useRef(null);
+      const socketRef = useRef(null);
+
       const destAddress = order?.direccion_destino || order?.delivery?.direccion_destino || 'Jr. Puno 345, Huancayo';
       const storeName = order?.sucursal_nombre || branch?.nombre || 'Tienda Mass - Huancayo Centro';
       const orderCode = order?.codigo_pedido || 'PED-MASS-001';
+      const pedidoId = order?.id;
 
-      // Simulador de avance de la moto hacia el domicilio del cliente
+      const calcDistanceKm = (lat1, lng1, lat2, lng2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      };
+
+      const fetchTrackingSnapshot = async () => {
+        if (!pedidoId && !orderCode) return;
+        try {
+          const endpoint = pedidoId ? `/delivery/track/${pedidoId}` : `/pedidos/seguimiento/${orderCode}`;
+          const res = await api.get(endpoint);
+          const d = res?.data;
+          if (!d) return;
+
+          if (d.estado_pedido) setOrderStatus(d.estado_pedido);
+          if (d.repartidor_nombre) setRiderName(d.repartidor_nombre);
+          if (d.repartidor_telefono) setRiderPhone(d.repartidor_telefono);
+
+          if (d.latitud_actual_repartidor && d.longitud_actual_repartidor) {
+            const lat = parseFloat(d.latitud_actual_repartidor);
+            const lng = parseFloat(d.longitud_actual_repartidor);
+            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+              setDriverLat(lat);
+              setDriverLng(lng);
+              setHasLiveGps(true);
+              setLastGpsTime(d.updated_at || d.delivery_updated_at || new Date().toISOString());
+            }
+          }
+
+          if (d.estado_pedido === 'ENTREGADO') {
+            setProgressPercent(100);
+          } else if (d.estado_pedido === 'DESPACHADO' || d.estado_delivery === 'EN_RUTA') {
+            setProgressPercent(65);
+          }
+        } catch (err) {
+          console.warn('Consulta de tracking:', err?.message || err);
+        }
+      };
+
+      // 1. Conexión en tiempo real vía Socket.io + Polling de respaldo cada 5s
+      useEffect(() => {
+        fetchTrackingSnapshot();
+        const pollTimer = setInterval(fetchTrackingSnapshot, 5000);
+
+        let socket = null;
+        if (window.io && pedidoId) {
+          const nodeHost = window.location.hostname || 'localhost';
+          socket = window.io(`http://${nodeHost}:4000`, {
+            transports: ['websocket', 'polling'],
+            reconnectionAttempts: 10
+          });
+          socketRef.current = socket;
+
+          socket.on('connect', () => {
+            setSocketConnected(true);
+            socket.emit('join_delivery_room', {
+              pedido_id: pedidoId,
+              rol: 'Cliente',
+              nombre: order?.cliente_nombres || 'Cliente Mass'
+            });
+          });
+
+          socket.on('disconnect', () => setSocketConnected(false));
+
+          socket.on('delivery_location_broadcast', (data) => {
+            if (!data || Number(data.pedido_id) !== Number(pedidoId)) return;
+            const lat = parseFloat(data.latitud);
+            const lng = parseFloat(data.longitud);
+            if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+              setDriverLat(lat);
+              setDriverLng(lng);
+              setHasLiveGps(true);
+              setSimulating(false);
+              if (data.repartidor_nombre) setRiderName(data.repartidor_nombre);
+              if (data.velocidad_kmh !== undefined) setSpeedKmh(Number(data.velocidad_kmh) || 0);
+              setLastGpsTime(data.timestamp || new Date().toISOString());
+              setProgressPercent((prev) => Math.max(prev, 65));
+            }
+          });
+
+          socket.on('order_status_broadcast', (data) => {
+            if (!data || Number(data.pedido_id) !== Number(pedidoId)) return;
+            if (data.nuevo_estado) {
+              setOrderStatus(data.nuevo_estado);
+              if (data.nuevo_estado === 'ENTREGADO') {
+                setProgressPercent(100);
+                if (onDeliveryCompleted) {
+                  onDeliveryCompleted({ ...order, estado_pedido: 'ENTREGADO' });
+                }
+              }
+            }
+          });
+        }
+
+        return () => {
+          clearInterval(pollTimer);
+          if (socket) socket.disconnect();
+        };
+      }, [pedidoId]);
+
+      // 2. Inicializar mapa interactivo Leaflet
+      useEffect(() => {
+        if (!window.L || !mapContainerRef.current || mapInstanceRef.current) return;
+
+        const map = window.L.map(mapContainerRef.current, {
+          center: [driverLat || storeLat, driverLng || storeLng],
+          zoom: 15
+        });
+
+        window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        const storeIcon = window.L.divIcon({
+          className: '',
+          html: '<div style="background:#FDCB02;color:#1C1917;border:2px solid #fff;border-radius:999px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 4px 10px rgba(0,0,0,.3)">🏪</div>',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const destIcon = window.L.divIcon({
+          className: '',
+          html: '<div style="background:#E30613;color:#fff;border:2px solid #fff;border-radius:999px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 4px 10px rgba(0,0,0,.3)">📍</div>',
+          iconSize: [32, 32],
+          iconAnchor: [16, 16]
+        });
+
+        const riderIcon = window.L.divIcon({
+          className: '',
+          html: '<div style="background:#10B981;color:#fff;border:3px solid #fff;border-radius:999px;width:38px;height:38px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 6px 14px rgba(0,0,0,.4)">🛵</div>',
+          iconSize: [38, 38],
+          iconAnchor: [19, 19]
+        });
+
+        window.L.marker([storeLat, storeLng], { icon: storeIcon }).addTo(map).bindPopup(`<strong>${storeName}</strong>`);
+        window.L.marker([destLat, destLng], { icon: destIcon }).addTo(map).bindPopup(`<strong>Tu Domicilio</strong><br/>${destAddress}`);
+
+        const rMarker = window.L.marker([driverLat, driverLng], { icon: riderIcon }).addTo(map).bindPopup(`<strong>${riderName}</strong>`);
+        const line = window.L.polyline([[storeLat, storeLng], [driverLat, driverLng], [destLat, destLng]], {
+          color: '#E30613',
+          weight: 4,
+          dashArray: '8, 8'
+        }).addTo(map);
+
+        map.fitBounds(line.getBounds(), { padding: [40, 40] });
+
+        mapInstanceRef.current = map;
+        riderMarkerRef.current = rMarker;
+        routeLineRef.current = line;
+
+        return () => {
+          map.remove();
+          mapInstanceRef.current = null;
+          riderMarkerRef.current = null;
+          routeLineRef.current = null;
+        };
+      }, []);
+
+      // 3. Actualizar marcador del repartidor en vivo cuando cambian sus coordenadas
+      useEffect(() => {
+        if (riderMarkerRef.current && mapInstanceRef.current) {
+          riderMarkerRef.current.setLatLng([driverLat, driverLng]);
+          riderMarkerRef.current.setPopupContent(`<strong>${riderName}</strong><br/>${driverLat.toFixed(5)}, ${driverLng.toFixed(5)}`);
+          if (routeLineRef.current) {
+            routeLineRef.current.setLatLngs([[storeLat, storeLng], [driverLat, driverLng], [destLat, destLng]]);
+          }
+          mapInstanceRef.current.panTo([driverLat, driverLng], { animate: true });
+        }
+      }, [driverLat, driverLng, riderName]);
+
+      // Simulador opcional de respaldo (solo si el usuario lo activa manualmente para demo)
       useEffect(() => {
         let timer = null;
         if (simulating) {
@@ -3178,26 +3379,16 @@ return (
             step++;
             const pct = Math.min(100, 30 + (step * 10));
             setProgressPercent(pct);
-
-            // Interpolación de coordenadas simulada en Huancayo
-            setDriverLat(-12.0684 + ((-12.0691 - -12.0684) * (step / 7)));
-            setDriverLng(-75.2100 + ((-75.2092 - -75.2100) * (step / 7)));
+            setDriverLat(storeLat + ((destLat - storeLat) * (step / 7)));
+            setDriverLng(storeLng + ((destLng - storeLng) * (step / 7)));
 
             if (step >= 7) {
               setSimulating(false);
               clearInterval(timer);
               setOrderStatus('ENTREGADO');
-
-              // Actualiza estado en MariaDB para que el reporte de compras lo muestre como FINALIZADO
               if (order?.id) {
-                api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' })
-                  .then(() => {
-                    if (order) order.estado_pedido = 'ENTREGADO';
-                  })
-                  .catch(console.error);
+                api.put(`/pedidos/${order.id}/estado`, { estado_pedido: 'ENTREGADO' }).catch(console.error);
               }
-
-              // Muestra el mensaje de agradecimiento
               if (onDeliveryCompleted) {
                 onDeliveryCompleted({ ...order, estado_pedido: 'ENTREGADO' });
               }
@@ -3207,30 +3398,56 @@ return (
         return () => { if (timer) clearInterval(timer); };
       }, [simulating]);
 
+      const handleManualRefresh = () => {
+        fetchTrackingSnapshot();
+        if (socketRef.current && socketRef.current.connected && pedidoId) {
+          socketRef.current.emit('request_rider_location', {
+            pedido_id: pedidoId,
+            solicitado_por: 'Cliente'
+          });
+        }
+      };
+
+      const remainingKm = calcDistanceKm(driverLat, driverLng, destLat, destLng);
+      const etaMinutes = Math.max(1, Math.round((remainingKm / 0.35)));
+
       return (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-xs bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-extrabold">{orderCode}</span>
                 <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-extrabold">{orderStatus}</span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                  socketConnected || hasLiveGps ? 'bg-emerald-600 text-white' : 'bg-amber-100 text-amber-900'
+                }`}>
+                  {hasLiveGps ? '🟢 GPS Real del Repartidor' : socketConnected ? '🟡 WebSocket Conectado' : '⏳ Consultando GPS...'}
+                </span>
               </div>
               <h1 className="text-xl font-extrabold text-stone-900 tracking-tight mt-1">
                 Seguimiento Satelital de tu Pedido en Tiempo Real
               </h1>
               <p className="text-xs text-stone-500">
-                Observa por dónde viene tu repartidor motorizado desde el almacén hasta tu domicilio.
+                Repartidor: <strong className="text-stone-800">{riderName}</strong>
+                {riderPhone ? ` (${riderPhone})` : ''} • Coordenadas: {driverLat.toFixed(5)}, {driverLng.toFixed(5)}
+                {speedKmh > 0 ? ` • ${speedKmh} km/h` : ''}
               </p>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={handleManualRefresh}
+                className="px-3.5 py-2 bg-stone-900 hover:bg-black text-mass-yellow font-extrabold text-xs rounded-xl shadow transition flex items-center gap-1.5"
+              >
+                <span>🔄 Consultar Ubicación</span>
+              </button>
               <button
                 onClick={() => setSimulating(!simulating)}
-                className={`px-4 py-2 font-extrabold text-xs rounded-xl shadow transition flex items-center gap-2 ${
+                className={`px-3.5 py-2 font-extrabold text-xs rounded-xl shadow transition flex items-center gap-1.5 ${
                   simulating ? 'bg-red-600 text-white animate-pulse' : 'bg-mass-yellow hover:bg-amber-400 text-stone-950'
                 }`}
               >
-                <span>{simulating ? '⏹ Detener Simulación' : '▶ Simular Avance del Repartidor (GPS)'}</span>
+                <span>{simulating ? '⏹ Detener Demo' : '▶ Simular Demo'}</span>
               </button>
               <button onClick={onBackToOrders} className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold rounded-xl">
                 Mis Compras
@@ -3238,42 +3455,20 @@ return (
             </div>
           </div>
 
-          {/* Mapa Visual del Delivery */}
-          <div className="bg-white p-6 rounded-3xl border border-stone-200 shadow-sm space-y-4">
-            <div className="relative w-full h-80 bg-stone-900 rounded-2xl overflow-hidden p-5 text-white flex flex-col justify-between border border-stone-700 shadow-inner">
-              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:20px_20px]"></div>
-
-              {/* Pin Origen: Tienda Mass */}
-              <div className="relative z-10 flex items-center gap-2 bg-stone-800/90 backdrop-blur px-3 py-1.5 rounded-lg border border-stone-700 w-fit text-xs">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                <span>Tienda Despachadora: <strong className="text-amber-400">{storeName}</strong></span>
-              </div>
-
-              {/* Motorizado en Camino */}
-              <div
-                className="relative z-10 self-center flex flex-col items-center transition-all duration-1000"
-                style={{ transform: `translateX(${(progressPercent - 50) * 4}px)` }}
-              >
-                <div className="p-3 bg-mass-yellow text-stone-950 rounded-full text-2xl shadow-2xl border-2 border-white animate-bounce">
-                  🛵
-                </div>
-                <span className="text-[10px] bg-stone-950 text-amber-300 px-2 py-0.5 rounded font-extrabold mt-1 border border-stone-700">
-                  {simulating ? 'Motorizado en ruta (24 km/h)' : 'Motorizado Mass Express'}
-                </span>
-              </div>
-
-              {/* Pin Destino: Casa del Cliente */}
-              <div className="relative z-10 flex items-center justify-between bg-stone-800/90 backdrop-blur p-3 rounded-xl border border-stone-700 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="text-mass-red text-base">📍</span>
-                  <div>
-                    <div className="font-bold text-white">Tu Domicilio de Entrega:</div>
-                    <div className="text-[11px] text-stone-300">{destAddress}</div>
-                  </div>
+          {/* Mapa Interactivo Real + Tarjetas de Estado */}
+          <div className="bg-white p-5 rounded-3xl border border-stone-200 shadow-sm space-y-4">
+            <div className="relative w-full h-96 rounded-2xl overflow-hidden border border-stone-300 shadow-inner">
+              <div ref={mapContainerRef} className="w-full h-full z-0"></div>
+              <div className="absolute bottom-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 bg-stone-950/90 backdrop-blur text-white px-4 py-2.5 rounded-xl border border-stone-700 text-xs">
+                <div>
+                  <div className="font-bold text-amber-400">🛵 {riderName}</div>
+                  <div className="text-[11px] text-stone-300">Destino: {destAddress}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-amber-400 font-extrabold text-sm">{simulating ? `${Math.max(2, Math.round(15 * (1 - progressPercent/100)))} min` : '~15 min'}</div>
-                  <div className="text-[10px] text-stone-400 font-medium">Tiempo estimado</div>
+                  <div className="text-amber-400 font-extrabold text-sm">~{etaMinutes} min ({remainingKm.toFixed(2)} km)</div>
+                  <div className="text-[10px] text-stone-400">
+                    {lastGpsTime ? `Actualizado: ${new Date(lastGpsTime).toLocaleTimeString()}` : 'Esperando señal GPS'}
+                  </div>
                 </div>
               </div>
             </div>
