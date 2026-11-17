@@ -590,7 +590,8 @@
             {view === 'catalogo' && (
               <CatalogoCliente
                 branch={selectedBranch}
-                searchTerm={debouncedSearch}
+                searchTerm={searchTerm}
+                debouncedSearch={debouncedSearch}
                 isSearching={isSearching}
                 selectedCategory={selectedCategory}
                 setSelectedCategory={setSelectedCategory}
@@ -1177,14 +1178,15 @@
 
     function CatalogoCliente({
       branch,
-      searchTerm,
+      searchTerm = '',
+      debouncedSearch = '',
       isSearching = false,
       selectedCategory,
       setSelectedCategory,
       isOffersOnly,
       setIsOffersOnly,
       isFavoritesOnly,
-      favorites,
+      favorites = [],
       onToggleFavorite,
       onClearFilters,
       onAddToCart,
@@ -1194,7 +1196,36 @@
       const [categorias, setCategorias] = useState([]);
       const [loading, setLoading] = useState(true);
       const [networkLoading, setNetworkLoading] = useState(false);
+      const [connectionError, setConnectionError] = useState(false);
+      const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
+      const [retryCount, setRetryCount] = useState(0);
       const searchAbortRef = useRef(null);
+
+      // Gestión controlada del Debounce de 500ms
+      // Si el componente recibe debouncedSearch ya procesado por el padre, lo utiliza directamente;
+      // en caso contrario, calcula el debounce internamente con temporizador de 500ms y limpieza adecuada
+      const [internalDebounced, setInternalDebounced] = useState(() => (debouncedSearch || searchTerm || '').trim());
+
+      useEffect(() => {
+        if (debouncedSearch !== undefined && debouncedSearch !== '') {
+          setInternalDebounced(debouncedSearch.trim());
+          return;
+        }
+        const trimmed = (searchTerm || '').trim();
+        if (trimmed === '') {
+          setInternalDebounced('');
+          return;
+        }
+        const timer = setTimeout(() => {
+          setInternalDebounced(trimmed);
+        }, 500);
+
+        return () => clearTimeout(timer);
+      }, [searchTerm, debouncedSearch]);
+
+      const effectiveSearch = (debouncedSearch !== undefined && debouncedSearch !== '' 
+        ? debouncedSearch 
+        : internalDebounced).trim();
 
       // Filtros internos
       const [catalogSearch, setCatalogSearch] = useState('');
@@ -1237,12 +1268,14 @@
         const controller = new AbortController();
         searchAbortRef.current = controller;
         setNetworkLoading(true);
+        setConnectionError(false);
+        setConnectionErrorMessage('');
 
         const params = new URLSearchParams();
         params.append('sucursal_id', branch.id);
         if (selectedCategory) params.append('categoria_id', selectedCategory);
-        if (searchTerm && searchTerm.trim() !== '') {
-          params.append('search', searchTerm.trim());
+        if (effectiveSearch !== '') {
+          params.append('search', effectiveSearch);
         }
 
         Promise.all([
@@ -1251,9 +1284,12 @@
         ]).then(([prodRes, catRes]) => {
           setProductos(prodRes.data?.data || prodRes.data || []);
           if (catRes.data && categorias.length === 0) setCategorias(catRes.data || []);
+          setConnectionError(false);
         }).catch(err => {
           if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
           console.error('Error al cargar catálogo:', err);
+          setConnectionError(true);
+          setConnectionErrorMessage(err.message || 'Error de conexión con el servidor.');
         }).finally(() => {
           if (searchAbortRef.current === controller) {
             setNetworkLoading(false);
@@ -1264,7 +1300,7 @@
         return () => {
           controller.abort();
         };
-      }, [branch?.id, selectedCategory, searchTerm]);
+      }, [branch?.id, selectedCategory, effectiveSearch, retryCount]);
 
       // Apertura automática si viene el parámetro ?producto=id en la URL
       useEffect(() => {
@@ -1317,9 +1353,20 @@
         setLowStock(true);
         setShortRotation(false);
         setQuickFilter('todos');
+        setConnectionError(false);
         if (setSelectedCategory) setSelectedCategory(null);
         if (setIsOffersOnly) setIsOffersOnly(false);
-        onClearFilters();
+        if (onClearFilters) onClearFilters();
+      };
+
+      // Función de normalización para búsquedas insensibles a mayúsculas, tildes y espacios
+      const normalizeText = (text) => {
+        return (text || '')
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
       };
 
       // Filtrado exhaustivo y ordenamiento
@@ -1334,21 +1381,24 @@
             return false;
           }
 
-          // 2. Buscador del Header Principal
-          if (searchTerm && searchTerm.trim() !== '') {
-            const q = searchTerm.toLowerCase().trim();
-            const matchName = (p.nombre || '').toLowerCase().includes(q);
-            const matchSku = (p.codigo_sku || '').toLowerCase().includes(q);
-            const matchCat = (p.categoria_nombre || '').toLowerCase().includes(q);
-            if (!matchName && !matchSku && !matchCat) return false;
+          // 2. Buscador con coincidencia insensible a tildes, mayúsculas y espacios
+          if (effectiveSearch !== '') {
+            const q = normalizeText(effectiveSearch);
+            const matchName = normalizeText(p.nombre).includes(q);
+            const matchSku = normalizeText(p.codigo_sku).includes(q);
+            const matchBar = normalizeText(p.codigo_barras).includes(q);
+            const matchDesc = normalizeText(p.descripcion).includes(q);
+            const matchCat = normalizeText(p.categoria_nombre).includes(q);
+            const matchBrand = normalizeText(brand).includes(q);
+            if (!matchName && !matchSku && !matchBar && !matchDesc && !matchCat && !matchBrand) return false;
           }
 
           // 3. Buscador interno del Catálogo
           if (catalogSearch && catalogSearch.trim() !== '') {
-            const q = catalogSearch.toLowerCase().trim();
-            const matchName = (p.nombre || '').toLowerCase().includes(q);
-            const matchSku = (p.codigo_sku || '').toLowerCase().includes(q);
-            const matchBrand = brand.toLowerCase().includes(q);
+            const q = normalizeText(catalogSearch);
+            const matchName = normalizeText(p.nombre).includes(q);
+            const matchSku = normalizeText(p.codigo_sku).includes(q);
+            const matchBrand = normalizeText(brand).includes(q);
             if (!matchName && !matchSku && !matchBrand) return false;
           }
 
@@ -1396,7 +1446,7 @@
       }, [
         productos,
         selectedCategory,
-        searchTerm,
+        effectiveSearch,
         catalogSearch,
         minPrice,
         maxPrice,
@@ -1413,14 +1463,14 @@
 
       const activeCatObj = categorias.find(c => c.id === selectedCategory);
       const hasAnyActiveFilter = selectedCategory !== null || isOffersOnly || isFavoritesOnly ||
-        (searchTerm && searchTerm.trim() !== '') || (catalogSearch && catalogSearch.trim() !== '') ||
+        effectiveSearch !== '' || (catalogSearch && catalogSearch.trim() !== '') ||
         selectedBrands.length > 0 || shortRotation || quickFilter !== 'todos' ||
         minPrice > 0 || maxPrice < 40 || !withStock || !lowStock;
 
 return (
         <div className="space-y-5">
           {/* Banner Principal Dinámico de Ofertas */}
-          {!selectedCategory && !isOffersOnly && !isFavoritesOnly && !searchTerm && !catalogSearch && (
+          {!selectedCategory && !isOffersOnly && !isFavoritesOnly && !effectiveSearch && !catalogSearch && (
             <BannerCarouselCliente
               branch={branch}
               onCtaClick={() => {
@@ -1483,11 +1533,28 @@ return (
           <section className="w-full space-y-4">
               
               {/* Grilla de Productos a Ancho Completo */}
-              {loading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 animate-pulse">
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map(n => (
-                    <div key={n} className="bg-white rounded-2xl p-4 h-80 border border-stone-200"></div>
-                  ))}
+              {connectionError ? (
+                <div className="bg-red-50/90 p-12 rounded-3xl border border-red-200 text-center space-y-3" role="alert">
+                  <span className="text-4xl">⚠️</span>
+                  <h3 className="text-base font-extrabold text-red-950">Error de conexión</h3>
+                  <p className="text-xs text-red-700 max-w-md mx-auto leading-relaxed">
+                    Ocurrió un problema al consultar los productos en el servidor. Por favor verifica tu conexión o intenta nuevamente.
+                  </p>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRetryCount(prev => prev + 1)}
+                      className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+                    >
+                      Reintentar conexión
+                    </button>
+                  </div>
+                </div>
+              ) : (isSearching || networkLoading) ? (
+                <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3" role="status" aria-live="polite">
+                  <div className="inline-block w-8 h-8 border-4 border-mass-yellow border-t-mass-red rounded-full animate-spin"></div>
+                  <h3 className="text-sm font-bold text-stone-900">Buscando productos...</h3>
+                  <p className="text-xs text-stone-500">Consultando disponibilidad en tiempo real en Tiendas Mass.</p>
                 </div>
               ) : filteredProducts.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -1681,22 +1748,37 @@ return (
                   })}
                 </div>
               ) : (
-                <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
+                <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3" role="region" aria-label="Sin resultados de búsqueda">
                   <span className="text-4xl">🔍</span>
-                  <h3 className="text-sm font-bold text-stone-900">
-                    {debouncedSearch ? 'No se encontraron productos' : 'No encontramos productos con esos filtros'}
+                  <h3 className="text-base font-extrabold text-stone-900">
+                    {effectiveSearch ? 'No se encontraron productos' : 'No encontramos productos con esos filtros'}
                   </h3>
-                  <p className="text-xs text-stone-500 max-w-md mx-auto">
-                    {debouncedSearch 
-                      ? 'No encontramos productos que coincidan con tu búsqueda. Verifica el nombre o intenta con otra palabra.' 
-                      : 'Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.'}
-                  </p>
-                  <button
-                    onClick={handleResetAllFilters}
-                    className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
-                  >
-                    {debouncedSearch ? 'Limpiar búsqueda y volver a mostrar el catálogo' : `Ver Todos los Productos (${allProducts.length})`}
-                  </button>
+                  <div className="text-xs text-stone-600 max-w-md mx-auto leading-relaxed space-y-1">
+                    {effectiveSearch ? (
+                      <>
+                        <p>
+                          No encontramos productos que coincidan con tu búsqueda: <strong className="text-stone-900">"{effectiveSearch}"</strong>.
+                        </p>
+                        <p className="text-stone-500">
+                          Intenta con otro nombre, código o categoría.
+                        </p>
+                      </>
+                    ) : (
+                      <p>
+                        Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.
+                      </p>
+                    )}
+                  </div>
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleResetAllFilters}
+                      className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300 inline-flex items-center gap-2 cursor-pointer active:scale-95"
+                    >
+                      <span>🧹</span>
+                      <span>{effectiveSearch ? 'Limpiar búsqueda y regresar al catálogo' : `Ver Todos los Productos (${productos.length})`}</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </section>

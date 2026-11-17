@@ -26,18 +26,35 @@ class ProductoRepository {
             $params[':cat_id'] = $categoriaId;
         }
         if ($search !== null && trim($search) !== '') {
-            $term = "%" . trim($search) . "%";
-            $where[] = "(p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar)";
+            $clean = preg_replace('/\s+/', ' ', trim($search));
+            $term = "%" . $clean . "%";
+            $where[] = "(p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar OR c.nombre LIKE :s_cat)";
             $params[':s_nom'] = $term;
             $params[':s_desc'] = $term;
             $params[':s_sku'] = $term;
             $params[':s_bar'] = $term;
+            $params[':s_cat'] = $term;
         }
 
         if (!empty($where)) {
             $sql .= " WHERE " . implode(" AND ", $where);
         }
-        $sql .= " ORDER BY p.id ASC";
+
+        if ($search !== null && trim($search) !== '') {
+            $clean = preg_replace('/\s+/', ' ', trim($search));
+            $sql .= " ORDER BY 
+                CASE 
+                    WHEN LOWER(p.nombre) = LOWER(:s_exact1) THEN 1 
+                    WHEN LOWER(p.codigo_sku) = LOWER(:s_exact2) THEN 2 
+                    WHEN p.nombre LIKE :s_prefix THEN 3 
+                    ELSE 4 
+                END ASC, p.nombre ASC";
+            $params[':s_exact1'] = $clean;
+            $params[':s_exact2'] = $clean;
+            $params[':s_prefix'] = $clean . "%";
+        } else {
+            $sql .= " ORDER BY p.id ASC";
+        }
 
         if (!empty($params)) {
             $stmt = $this->db->prepare($sql);
@@ -65,15 +82,28 @@ class ProductoRepository {
         }
 
         if ($search !== null && trim($search) !== '') {
-            $term = "%" . trim($search) . "%";
-            $sql .= " AND (p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar)";
+            $clean = preg_replace('/\s+/', ' ', trim($search));
+            $term = "%" . $clean . "%";
+            $sql .= " AND (p.nombre LIKE :s_nom OR p.descripcion LIKE :s_desc OR p.codigo_sku LIKE :s_sku OR p.codigo_barras LIKE :s_bar OR c.nombre LIKE :s_cat)";
             $params[':s_nom'] = $term;
             $params[':s_desc'] = $term;
             $params[':s_sku'] = $term;
             $params[':s_bar'] = $term;
-        }
+            $params[':s_cat'] = $term;
 
-        $sql .= " ORDER BY p.nombre ASC";
+            $sql .= " ORDER BY 
+                CASE 
+                    WHEN LOWER(p.nombre) = LOWER(:s_exact1) THEN 1 
+                    WHEN LOWER(p.codigo_sku) = LOWER(:s_exact2) THEN 2 
+                    WHEN p.nombre LIKE :s_prefix THEN 3 
+                    ELSE 4 
+                END ASC, p.nombre ASC";
+            $params[':s_exact1'] = $clean;
+            $params[':s_exact2'] = $clean;
+            $params[':s_prefix'] = $clean . "%";
+        } else {
+            $sql .= " ORDER BY p.nombre ASC";
+        }
 
         $stmt = $this->db->prepare($sql);
         $stmt->execute($params);

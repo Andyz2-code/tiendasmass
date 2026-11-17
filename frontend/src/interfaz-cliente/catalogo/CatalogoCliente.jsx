@@ -21,16 +21,20 @@ function detectBrand(name) {
   return 'MASS';
 }
 
-export const CatalogoView = () => {
-  const { selectedBranch } = useBranch();
+export const CatalogoView = ({ branch, searchTerm = '', debouncedSearch: propDebounced = '' } = {}) => {
+  const { selectedBranch: contextBranch } = useBranch();
+  const activeBranch = branch || contextBranch;
   const { addToCart } = useCart();
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
+  const [connectionErrorMessage, setConnectionErrorMessage] = useState('');
+  const [retryCount, setRetryCount] = useState(0);
 
   // Estados
   const [selectedCat, setSelectedCat] = useState(null);
-  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState(searchTerm || '');
   const [isOffersOnly, setIsOffersOnly] = useState(false);
   const [isFavoritesOnly, setIsFavoritesOnly] = useState(false);
   const [favorites, setFavorites] = useState(() => {
@@ -44,13 +48,21 @@ export const CatalogoView = () => {
   const [selectedProductModal, setSelectedProductModal] = useState(null);
 
   // Optimización de Búsqueda: Debounce 500ms + AbortController
-  const debouncedSearch = useDebounce(catalogSearch, 500);
+  const internalDebounced = useDebounce(catalogSearch, 500);
+  const debouncedSearch = propDebounced || internalDebounced;
   const [isSearching, setIsSearching] = useState(false);
   const searchAbortRef = useRef(null);
 
+  // Sincronizar prop searchTerm si cambia desde afuera
+  useEffect(() => {
+    if (searchTerm !== undefined && searchTerm !== catalogSearch) {
+      setCatalogSearch(searchTerm);
+    }
+  }, [searchTerm]);
+
   // Monitoreo del estado de escritura
   useEffect(() => {
-    if (catalogSearch.trim() !== debouncedSearch) {
+    if (catalogSearch.trim() !== debouncedSearch.trim()) {
       setIsSearching(true);
     } else {
       setIsSearching(false);
@@ -58,7 +70,7 @@ export const CatalogoView = () => {
   }, [catalogSearch, debouncedSearch]);
 
   const fetchData = async (term = debouncedSearch, cat = selectedCat) => {
-    if (!selectedBranch?.id) return;
+    if (!activeBranch?.id) return;
 
     // Cancelar petición anterior si aún está en vuelo
     if (searchAbortRef.current) {
@@ -68,9 +80,11 @@ export const CatalogoView = () => {
     searchAbortRef.current = controller;
 
     setLoading(true);
+    setConnectionError(false);
+    setConnectionErrorMessage('');
     try {
       const params = new URLSearchParams();
-      params.append('sucursal_id', selectedBranch.id);
+      params.append('sucursal_id', activeBranch.id);
       if (cat) params.append('categoria_id', cat);
       if (term && term.trim()) params.append('search', term.trim());
 
@@ -78,11 +92,14 @@ export const CatalogoView = () => {
         api.get(`/productos?${params.toString()}`, { signal: controller.signal }),
         api.get('/categorias', { signal: controller.signal })
       ]);
-      setProductos(prodRes.data || []);
+      setProductos(prodRes.data?.data || prodRes.data || []);
       setCategorias(catRes.data || []);
+      setConnectionError(false);
     } catch (err) {
       if (err.name === 'AbortError' || err.code === 'ERR_CANCELED') return;
       console.error('Error al cargar catálogo:', err);
+      setConnectionError(true);
+      setConnectionErrorMessage(err.message || 'Error de conexión con el servidor.');
     } finally {
       setLoading(false);
       setIsSearching(false);
@@ -91,7 +108,7 @@ export const CatalogoView = () => {
 
   useEffect(() => {
     fetchData(debouncedSearch, selectedCat);
-  }, [selectedBranch, debouncedSearch, selectedCat]);
+  }, [activeBranch, debouncedSearch, selectedCat, retryCount]);
 
   // Soporte para abrir modal directo si hay ?producto= en URL
   useEffect(() => {
@@ -133,6 +150,16 @@ export const CatalogoView = () => {
     setCatalogSearch('');
     setIsOffersOnly(false);
     setIsFavoritesOnly(false);
+    setConnectionError(false);
+  };
+
+  const normalizeText = (text) => {
+    return (text || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   // Filtrado de productos
@@ -155,22 +182,25 @@ export const CatalogoView = () => {
         return false;
       }
 
-      // Búsqueda por texto
-      if (catalogSearch && catalogSearch.trim() !== '') {
-        const q = catalogSearch.toLowerCase().trim();
-        const matchName = (p.nombre || '').toLowerCase().includes(q);
-        const matchSku = (p.codigo_sku || '').toLowerCase().includes(q);
-        const matchBrand = detectBrand(p.nombre).toLowerCase().includes(q);
-        if (!matchName && !matchSku && !matchBrand) return false;
+      // Búsqueda por texto con coincidencia insensible a tildes, mayúsculas y espacios
+      if (debouncedSearch && debouncedSearch.trim() !== '') {
+        const q = normalizeText(debouncedSearch);
+        const matchName = normalizeText(p.nombre).includes(q);
+        const matchSku = normalizeText(p.codigo_sku).includes(q);
+        const matchBar = normalizeText(p.codigo_barras).includes(q);
+        const matchDesc = normalizeText(p.descripcion).includes(q);
+        const matchCat = normalizeText(p.categoria_nombre).includes(q);
+        const matchBrand = normalizeText(detectBrand(p.nombre)).includes(q);
+        if (!matchName && !matchSku && !matchBar && !matchDesc && !matchCat && !matchBrand) return false;
       }
 
       return true;
     });
-  }, [productos, selectedCat, catalogSearch, isOffersOnly, isFavoritesOnly, favorites]);
+  }, [productos, selectedCat, debouncedSearch, isOffersOnly, isFavoritesOnly, favorites]);
 
   const activeCatObj = categorias.find(c => c.id === selectedCat);
-  const hasAnyActiveFilter = selectedCat !== null || isOffersOnly || isFavoritesOnly || (catalogSearch && catalogSearch.trim() !== '');
-  const showHeroBanner = !selectedCat && !isOffersOnly && !isFavoritesOnly && !catalogSearch;
+  const hasAnyActiveFilter = selectedCat !== null || isOffersOnly || isFavoritesOnly || (debouncedSearch && debouncedSearch.trim() !== '');
+  const showHeroBanner = !selectedCat && !isOffersOnly && !isFavoritesOnly && !debouncedSearch;
 
   return (
     <div className="space-y-6">
@@ -523,23 +553,61 @@ export const CatalogoView = () => {
               );
             })}
           </div>
-        ) : (
-          <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
-            <AlertCircle className="w-10 h-10 text-stone-400 mx-auto stroke-1" />
-            <h3 className="text-sm font-bold text-stone-900">
-              {debouncedSearch ? `No encontramos productos para "${debouncedSearch}"` : 'No encontramos productos en esta sección'}
-            </h3>
-            <p className="text-xs text-stone-500 max-w-md mx-auto">
-              {debouncedSearch
-                ? 'Revisa la ortografía o intenta buscar por una categoría o término más general (ej. arroz, leche, café, galletas).'
-                : 'Prueba limpiando los filtros seleccionados para ver el catálogo general.'}
+        ) : connectionError ? (
+          <div className="bg-red-50/90 p-12 rounded-3xl border border-red-200 text-center space-y-3" role="alert">
+            <span className="text-4xl">⚠️</span>
+            <h3 className="text-base font-extrabold text-red-950">Error de conexión</h3>
+            <p className="text-xs text-red-700 max-w-md mx-auto leading-relaxed">
+              Ocurrió un problema al consultar los productos en el servidor. Por favor verifica tu conexión o intenta nuevamente.
             </p>
-            <button
-              onClick={handleResetAllFilters}
-              className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
-            >
-              {debouncedSearch ? 'Limpiar búsqueda y ver catálogo completo' : 'Ver Todos los Productos'}
-            </button>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setRetryCount(prev => prev + 1)}
+                className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl text-xs shadow-xs transition cursor-pointer"
+              >
+                Reintentar conexión
+              </button>
+            </div>
+          </div>
+        ) : (isSearching || loading) ? (
+          <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3" role="status" aria-live="polite">
+            <div className="inline-block w-8 h-8 border-4 border-mass-yellow border-t-mass-red rounded-full animate-spin"></div>
+            <h3 className="text-sm font-bold text-stone-900">Buscando productos...</h3>
+            <p className="text-xs text-stone-500">Consultando disponibilidad en tiempo real en Tiendas Mass.</p>
+          </div>
+        ) : (
+          <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3" role="region" aria-label="Sin resultados de búsqueda">
+            <span className="text-4xl">🔍</span>
+            <h3 className="text-base font-extrabold text-stone-900">
+              {debouncedSearch ? 'No se encontraron productos' : 'No encontramos productos en esta sección'}
+            </h3>
+            <div className="text-xs text-stone-600 max-w-md mx-auto leading-relaxed space-y-1">
+              {debouncedSearch ? (
+                <>
+                  <p>
+                    No encontramos productos que coincidan con tu búsqueda: <strong className="text-stone-900">"{debouncedSearch}"</strong>.
+                  </p>
+                  <p className="text-stone-500">
+                    Intenta con otro nombre, código o categoría.
+                  </p>
+                </>
+              ) : (
+                <p>
+                  Prueba limpiando los filtros seleccionados para ver el catálogo general.
+                </p>
+              )}
+            </div>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleResetAllFilters}
+                className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300 inline-flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <span>🧹</span>
+                <span>{debouncedSearch ? 'Limpiar búsqueda y regresar al catálogo' : `Ver Todos los Productos (${productos.length})`}</span>
+              </button>
+            </div>
           </div>
         )}
       </section>
@@ -549,7 +617,7 @@ export const CatalogoView = () => {
         product={selectedProductModal}
         isOpen={!!selectedProductModal}
         onClose={() => setSelectedProductModal(null)}
-        branch={selectedBranch}
+        branch={activeBranch}
         onAddToCart={(prod, qty) => addToCart(prod, qty)}
         isFavorite={selectedProductModal ? favorites.includes(selectedProductModal.id) : false}
         onToggleFavorite={toggleFavorite}
@@ -557,3 +625,6 @@ export const CatalogoView = () => {
     </div>
   );
 };
+
+export const CatalogoCliente = CatalogoView;
+export default CatalogoCliente;
