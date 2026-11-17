@@ -53,6 +53,10 @@ return [
     'google' => [
         'maps_api_key' => getenv('GOOGLE_MAPS_API_KEY') ?: '',
     ],
+    'gemini' => [
+        'api_key' => getenv('GEMINI_API_KEY') ?: '',
+        'model' => getenv('GEMINI_MODEL') ?: 'gemini-1.5-flash',
+    ],
     'node' => [
         'socket_url' => getenv('NODE_SOCKET_URL') ?: 'http://localhost:4000',
     ]

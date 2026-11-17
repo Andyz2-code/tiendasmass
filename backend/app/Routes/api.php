@@ -91,4 +91,8 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->putMapping('/banners/{id}', 'BannerController@update', ['jwt', 'role:Administrador,Supervisor']);
     $api->patchMapping('/banners/{id}/toggle', 'BannerController@toggle', ['jwt', 'role:Administrador,Supervisor']);
     $api->deleteMapping('/banners/{id}', 'BannerController@destroy', ['jwt', 'role:Administrador,Supervisor']);
+
+    // 10. Mapeo de Chatbot Inteligente de Recomendaciones IA Massi (Google Gemini)
+    $api->postMapping('/chat/recommendations', 'ChatbotController@getRecommendations');
+    $api->postMapping('/chatbot/recommendations', 'ChatbotController@getRecommendations');
 });

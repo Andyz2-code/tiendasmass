@@ -5,6 +5,7 @@ import { useBranch } from '../context/BranchContext';
 import { useCart } from '../context/CartContext';
 import { LoginModal } from '../modules/auth/LoginModal';
 import { AccessibilityPanel } from '../components/AccessibilityPanel';
+import { ChatbotCartAssistant } from '../components/ChatbotCartAssistant';
 import {
   ShoppingBag,
   Store,
@@ -285,6 +286,9 @@ export const StoreLayout = () => {
                     <span className="text-red-600">S/. {totalMercaderia.toFixed(2)}</span>
                   </div>
                 </div>
+
+                {/* Asistente Inteligente de Recomendaciones IA Massi */}
+                <ChatbotCartAssistant />
 
                 <button
                   onClick={() => {

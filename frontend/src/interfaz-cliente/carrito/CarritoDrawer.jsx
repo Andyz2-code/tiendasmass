@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBranch } from '../../context/BranchContext';
 import { useCart } from '../../context/CartContext';
 import { GoogleMapPicker } from '../../components/GoogleMapPicker';
+import { ChatbotCartAssistant } from '../../components/ChatbotCartAssistant';
 import api from '../../services/api';
 import {
   ShoppingBag,
@@ -745,6 +746,9 @@ export const CheckoutView = () => {
                 <span className="text-mass-red">S/. {totalFinal.toFixed(2)}</span>
               </div>
             </div>
+
+            {/* Asistente Inteligente de Ahorro Massi */}
+            <ChatbotCartAssistant />
 
             <button
               onClick={handlePlaceOrder}

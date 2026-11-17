@@ -93,6 +93,7 @@
       const [isThankYouOpen, setIsThankYouOpen] = useState(false);
       const [thankYouInfo, setThankYouInfo] = useState(null);
       const [clientOrdersCount, setClientOrdersCount] = useState(0);
+      const [isMassiChatOpen, setIsMassiChatOpen] = useState(() => new URLSearchParams(window.location.search).get('massi') === 'open');
 
       // Estados de Búsqueda con Debounce de 500ms
       const [categorias, setCategorias] = useState([]);
@@ -721,6 +722,14 @@
 
                 {cart.length > 0 && (
                   <div className="p-4 border-t bg-stone-50 space-y-3">
+                    {/* Recomendaciones Proactivas de Massi dentro de la Canasta */}
+                    <MassiCartRecommendations
+                      cart={cart}
+                      selectedBranch={selectedBranch}
+                      onAddToCart={addToCart}
+                      onOpenChat={() => setIsMassiChatOpen(true)}
+                    />
+
                     <div className="space-y-1 text-xs">
                       <div className="flex justify-between text-stone-500">
                         <span>Subtotal (sin IGV):</span>
@@ -800,6 +809,15 @@
           )}
 
           <AccessibilityWidget />
+
+          {/* Widget Flotante del Asistente Massi Afuera (Bottom-Right) */}
+          <MassiFloatingChatWidget
+            cart={cart}
+            selectedBranch={selectedBranch}
+            onAddToCart={addToCart}
+            isOpen={isMassiChatOpen}
+            setIsOpen={setIsMassiChatOpen}
+          />
 
           <footer className="bg-stone-900 text-stone-400 text-xs py-8 border-t border-stone-800 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center space-y-2">
@@ -1154,6 +1172,417 @@
                   Listo
                 </button>
               </div>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // ==========================================
+    // MASSI – RECOMENDACIONES DENTRO DE LA CANASTA
+    // ==========================================
+    function MassiCartRecommendations({ cart, selectedBranch, onAddToCart, onOpenChat }) {
+      const [recs, setRecs] = useState([]);
+      const [loading, setLoading] = useState(false);
+      const [addedMap, setAddedMap] = useState({});
+
+      useEffect(() => {
+        if (!cart || cart.length === 0) {
+          setRecs([]);
+          return;
+        }
+
+        let isMounted = true;
+        setLoading(true);
+        api.post('/chat/recommendations', {
+          sucursal_id: selectedBranch?.id || 1,
+          cart_items: cart
+        }).then(res => {
+          const payload = res?.data || res;
+          if (isMounted && Array.isArray(payload?.productos)) {
+            setRecs(payload.productos.slice(0, 2));
+          }
+        }).catch(err => {
+          console.error("Error al cargar sugerencias Massi:", err);
+        }).finally(() => {
+          if (isMounted) setLoading(false);
+        });
+
+        return () => { isMounted = false; };
+      }, [cart.length, selectedBranch?.id]);
+
+      if (loading) {
+        return (
+          <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs text-stone-600 flex items-center gap-2">
+            <span className="animate-spin text-amber-600">✨</span>
+            <span>Massi está buscando las mejores combinaciones de ahorro...</span>
+          </div>
+        );
+      }
+
+      if (recs.length === 0) return null;
+
+      const handleAdd = (p) => {
+        onAddToCart(p, 1);
+        setAddedMap(prev => ({ ...prev, [p.id]: true }));
+        setTimeout(() => {
+          setAddedMap(prev => ({ ...prev, [p.id]: false }));
+        }, 1800);
+      };
+
+      return (
+        <div className="p-3 bg-amber-50/90 rounded-2xl border-2 border-amber-300 shadow-2xs space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-black text-xs text-stone-900">
+              <span className="w-5 h-5 rounded-full bg-stone-900 text-yellow-300 flex items-center justify-center text-[11px] shadow-xs">🤖</span>
+              <span>Massi te recomienda para esta compra:</span>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenChat}
+              className="text-[10px] font-bold text-amber-900 hover:text-mass-red underline transition cursor-pointer"
+            >
+              Abrir Chat 💬
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            {recs.map(p => {
+              const price = Number.parseFloat(p.precio_venta || p.precio || 0).toFixed(2);
+              const isAdded = !!addedMap[p.id];
+              return (
+                <div key={p.id} className="flex items-center justify-between bg-white p-2 rounded-xl border border-amber-200/90 shadow-2xs">
+                  <div className="flex items-center gap-2 min-w-0 pr-2">
+                    <img
+                      src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100'}
+                      alt={p.nombre}
+                      className="w-10 h-10 object-cover rounded-lg bg-stone-50 border border-stone-200 shrink-0"
+                      onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100'; }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-stone-900 truncate">{p.nombre}</p>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-extrabold text-mass-red">S/. {price}</span>
+                        <span className="text-[9px] bg-stone-100 text-stone-600 px-1 py-0.2 rounded font-semibold">
+                          Stock: {p.stock_actual || p.stock || 1}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAdd(p)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shrink-0 transition active:scale-95 cursor-pointer ${
+                      isAdded
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-mass-yellow hover:bg-yellow-400 text-stone-950 shadow-xs'
+                    }`}
+                  >
+                    <span>{isAdded ? '✓ ¡Listo!' : '+ Agregar'}</span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // MASSI – ASISTENTE FLOTANTE AFUERA (BOTTOM-RIGHT)
+    // Chatbot proactivo: el mismo chat recomienda automáticamente al abrirse
+    // ==========================================
+    function MassiFloatingChatWidget({ cart, selectedBranch, onAddToCart, isOpen, setIsOpen }) {
+      const [loading, setLoading] = useState(false);
+      const [messages, setMessages] = useState([]);
+      const [recommendations, setRecommendations] = useState([]);
+      const [inputText, setInputText] = useState('');
+      const [addedMap, setAddedMap] = useState({});
+      const messagesEndRef = useRef(null);
+      const hasLoadedInitial = useRef(false);
+
+      const scrollToBottom = () => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+      };
+
+      // Consulta automática de recomendaciones
+      const fetchRecommendations = async (userPrompt = '') => {
+        if (!cart || cart.length === 0) {
+          setMessages([
+            {
+              sender: 'bot',
+              text: '¡Hola! Soy Massi, tu asistente inteligente de ahorro en Tiendas Mass. Agrega productos a tu canasta y te recomendaré de inmediato los mejores complementos y ofertas.'
+            }
+          ]);
+          setRecommendations([]);
+          return;
+        }
+
+        setLoading(true);
+        try {
+          const res = await api.post('/chat/recommendations', {
+            sucursal_id: selectedBranch?.id || 1,
+            cart_items: cart,
+            message: userPrompt
+          });
+
+          const payload = res?.data || res;
+          if (payload) {
+            if (userPrompt) {
+              setMessages(prev => [...prev, { sender: 'user', text: userPrompt }]);
+            }
+            if (payload.mensaje_ia) {
+              setMessages(prev => [
+                ...prev,
+                { sender: 'bot', text: payload.mensaje_ia }
+              ]);
+            }
+            if (Array.isArray(payload.productos)) {
+              setRecommendations(payload.productos);
+            }
+          }
+        } catch (err) {
+          console.error("Error en Massi Chat:", err);
+          setMessages(prev => [
+            ...prev,
+            { sender: 'bot', text: 'En este momento tengo un retraso en la conexión, pero puedes seguir agregando productos con normalidad.' }
+          ]);
+        } finally {
+          setLoading(false);
+          setTimeout(scrollToBottom, 100);
+        }
+      };
+
+      // Cuando se abre el chat, si aún no tiene mensajes, cargar automáticamente las recomendaciones
+      useEffect(() => {
+        if (isOpen) {
+          if (!hasLoadedInitial.current || recommendations.length === 0) {
+            hasLoadedInitial.current = true;
+            fetchRecommendations('');
+          }
+          setTimeout(scrollToBottom, 150);
+        }
+      }, [isOpen, cart.length, selectedBranch?.id]);
+
+      const handleSend = (e) => {
+        e.preventDefault();
+        const trimmed = inputText.trim();
+        if (!trimmed || loading) return;
+        setInputText('');
+        fetchRecommendations(trimmed);
+      };
+
+      const handleQuickPrompt = (prompt) => {
+        if (loading) return;
+        fetchRecommendations(prompt);
+      };
+
+      const handleAdd = (p) => {
+        onAddToCart(p, 1);
+        setAddedMap(prev => ({ ...prev, [p.id]: true }));
+        setTimeout(() => {
+          setAddedMap(prev => ({ ...prev, [p.id]: false }));
+        }, 1800);
+      };
+
+      const cartCount = cart.reduce((acc, i) => acc + (i.cantidad || 1), 0);
+
+      return (
+        <>
+          {/* Botón Flotante Afuera en la Esquina Inferior Derecha */}
+          {!isOpen && (
+            <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2">
+              {/* Globo de Diálogo Proactivo si la canasta tiene productos */}
+              {cartCount > 0 && (
+                <div
+                  onClick={() => setIsOpen(true)}
+                  className="hidden sm:flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl shadow-xl border-2 border-amber-400 cursor-pointer hover:scale-102 transition animate-bounce duration-1000"
+                  title="Abrir recomendaciones de Massi"
+                >
+                  <span className="text-base">✨</span>
+                  <div className="text-left text-xs leading-tight">
+                    <p className="font-extrabold text-stone-900">¡Massi tiene sugerencias!</p>
+                    <p className="text-[10px] text-stone-500">Para tus {cartCount} productos en canasta</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Botón Circular Disparador */}
+              <button
+                type="button"
+                onClick={() => setIsOpen(true)}
+                aria-label="Abrir asistente de ahorro Massi"
+                className="relative bg-gradient-to-tr from-stone-900 via-stone-850 to-stone-900 text-yellow-300 p-3.5 rounded-full shadow-2xl border-2 border-amber-400 hover:scale-110 active:scale-95 transition flex items-center justify-center font-black group cursor-pointer"
+              >
+                <span className="text-xl group-hover:rotate-12 transition-transform">🤖</span>
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-mass-red text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow animate-pulse">
+                    ★
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Ventana Emergente del Asistente Massi */}
+          {isOpen && (
+            <div
+              className="fixed bottom-5 right-4 sm:right-6 z-50 w-[92vw] sm:w-96 max-w-sm bg-white rounded-3xl shadow-2xl border-2 border-amber-400 overflow-hidden flex flex-col max-h-[580px] animate-in zoom-in-95 duration-200"
+              role="dialog"
+              aria-label="Ventana de chat de Massi"
+            >
+              {/* Cabecera del Chat */}
+              <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-amber-500 p-3.5 text-stone-950 flex items-center justify-between shadow-sm">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-full bg-stone-900 text-yellow-300 flex items-center justify-center font-black text-sm shadow">
+                    🤖
+                  </div>
+                  <div>
+                    <h3 className="font-black text-xs sm:text-sm leading-tight flex items-center gap-1.5">
+                      <span>Massi – Asistente de Ahorro</span>
+                      <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" title="En línea"></span>
+                    </h3>
+                    <p className="text-[10px] font-bold text-stone-800">
+                      Recomendaciones automáticas · {selectedBranch?.nombre || 'Huancayo'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="w-7 h-7 rounded-full bg-stone-900/10 hover:bg-stone-900/20 text-stone-900 font-black flex items-center justify-center text-xs transition cursor-pointer"
+                  aria-label="Cerrar chat"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Cuerpo de Mensajes */}
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-3 bg-stone-50/60 custom-scroll text-xs">
+                {messages.map((m, idx) => (
+                  <div
+                    key={idx}
+                    className={`p-3 rounded-2xl leading-relaxed text-xs shadow-2xs ${
+                      m.sender === 'user'
+                        ? 'bg-amber-200 text-stone-900 ml-8 text-right font-semibold rounded-br-none'
+                        : 'bg-white text-stone-850 mr-4 border border-stone-200 rounded-bl-none font-medium'
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                ))}
+
+                {loading && (
+                  <div className="flex items-center gap-2 p-2.5 bg-white text-stone-600 rounded-2xl border border-amber-200 text-xs mr-6">
+                    <span className="animate-spin text-amber-500 text-sm">✨</span>
+                    <span className="font-medium">Massi está revisando ofertas y stock...</span>
+                  </div>
+                )}
+
+                {/* Tarjetas de Productos Recomendados Proactivamente */}
+                {recommendations.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-stone-600 px-1">
+                      <span>Complementos sugeridos con stock:</span>
+                      <span className="text-emerald-700">✓ En tu sucursal</span>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {recommendations.map(p => {
+                        const price = Number.parseFloat(p.precio_venta || p.precio || 0).toFixed(2);
+                        const isAdded = !!addedMap[p.id];
+                        return (
+                          <div
+                            key={p.id}
+                            className="flex items-center justify-between bg-white p-2.5 rounded-2xl border border-amber-200 shadow-2xs hover:border-amber-400 transition"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <img
+                                src={p.imagen_url || 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100'}
+                                alt={p.nombre}
+                                className="w-11 h-11 object-cover rounded-xl bg-stone-50 border border-stone-200 shrink-0"
+                                onError={(e) => { e.target.src = 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=100'; }}
+                              />
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-stone-900 truncate">{p.nombre}</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-xs font-black text-mass-red">S/. {price}</span>
+                                  <span className="text-[10px] bg-stone-100 text-stone-600 px-1.5 py-0.2 rounded-md font-semibold">
+                                    Stock: {p.stock_actual || p.stock || 1}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAdd(p)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1 shrink-0 transition active:scale-95 cursor-pointer ${
+                                isAdded
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-mass-yellow hover:bg-yellow-400 text-stone-950 shadow-xs'
+                              }`}
+                              title="Agregar directamente a la canasta"
+                            >
+                              <span>{isAdded ? '✓ ¡Listo!' : '+ Agregar'}</span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Sugerencias Rápidas */}
+              <div className="bg-white px-3 pt-2 pb-1 border-t border-stone-100 flex items-center gap-1.5 overflow-x-auto custom-scroll text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => handleQuickPrompt('¿Qué combina con mi compra?')}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold px-2.5 py-1 rounded-full border border-amber-200 shrink-0 transition cursor-pointer"
+                >
+                  💡 ¿Qué combina?
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickPrompt('¿Opciones más económicas?')}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold px-2.5 py-1 rounded-full border border-amber-200 shrink-0 transition cursor-pointer"
+                >
+                  💰 Más económico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickPrompt('¿Qué me falta para el almuerzo?')}
+                  className="bg-amber-50 hover:bg-amber-100 text-amber-950 font-bold px-2.5 py-1 rounded-full border border-amber-200 shrink-0 transition cursor-pointer"
+                >
+                  🍲 Para cocinar
+                </button>
+              </div>
+
+              {/* Formulario de Pregunta */}
+              <form onSubmit={handleSend} className="p-2.5 bg-white border-t border-stone-200 flex items-center gap-1.5">
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Pregúntale a Massi..."
+                  disabled={loading}
+                  className="flex-1 bg-stone-100 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+                />
+                <button
+                  type="submit"
+                  disabled={loading || !inputText.trim()}
+                  className="bg-stone-900 hover:bg-black disabled:opacity-40 text-yellow-400 px-3 py-2 rounded-xl text-xs font-black transition shrink-0 cursor-pointer"
+                >
+                  Enviar
+                </button>
+              </form>
             </div>
           )}
         </>
