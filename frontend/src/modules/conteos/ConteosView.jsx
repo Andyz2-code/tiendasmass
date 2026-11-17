@@ -1,39 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useBranch } from '../../context/BranchContext';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { Modal } from '../../components/Modal';
-import { AbcBadge } from '../../components/AlertBadge';
 import {
   ClipboardList,
   PlusCircle,
+  Calendar,
+  Clock,
+  User,
+  Users,
+  Search,
   CheckCircle2,
+  XCircle,
   AlertTriangle,
   RefreshCw,
   FileCheck2,
-  Calculator
+  Phone,
+  MessageSquare
 } from 'lucide-react';
 
 export const ConteosView = () => {
   const { selectedBranch } = useBranch();
+  const { user, isAdmin } = useAuth();
   const [conteos, setConteos] = useState([]);
+  const [trabajadores, setTrabajadores] = useState([]);
   const [selectedConteo, setSelectedConteo] = useState(null);
   const [isNewCountOpen, setIsNewCountOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+  const [busquedaTrabajador, setBusquedaTrabajador] = useState('');
 
-  // Formulario nuevo conteo
-  const [estratoAbc, setEstratoAbc] = useState('A');
-  const [observaciones, setObservaciones] = useState('Auditoría física mensual de alta inversión');
+  // Formulario nuevo conteo (Prompt 1)
+  const [formData, setFormData] = useState({
+    sucursal_id: selectedBranch?.id || 1,
+    encargado_id: '',
+    trabajadores_apoyo: [],
+    fecha_programada: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+    hora_programada: '08:30',
+    estrato_abc: 'A',
+    observaciones: 'Auditoría periódica de inventario y rotación PEPS'
+  });
 
-  // Valores de conteo físico ingresados
   const [physicalCounts, setPhysicalCounts] = useState({});
 
   const fetchConteos = async () => {
     if (!selectedBranch?.id) return;
     setLoading(true);
     try {
-      const res = await api.get(`/conteos?sucursal_id=${selectedBranch.id}`);
+      const q = (!isAdmin && user?.sucursal_id) ? `?sucursal_id=${user.sucursal_id}` : `?sucursal_id=${selectedBranch.id}`;
+      const res = await api.get(`/conteos${q}`);
       setConteos(res.data || []);
     } catch (err) {
       console.error('Error al cargar conteos:', err);
@@ -42,379 +61,415 @@ export const ConteosView = () => {
     }
   };
 
-  useEffect(() => {
-    fetchConteos();
-  }, [selectedBranch]);
-
-  const handleOpenConteo = async (id) => {
-    setLoading(true);
+  const fetchTrabajadores = async (sucId) => {
     try {
-      const res = await api.get(`/conteos/${id}`);
-      const data = res.data;
-      setSelectedConteo(data);
-
-      // Precargar valores físicos si ya existen
-      const initialMap = {};
-      data.detalles?.forEach((d) => {
-        initialMap[d.producto_id] = {
-          stock_fisico: d.stock_fisico !== null ? d.stock_fisico : '',
-          justificacion: d.justificacion || ''
-        };
-      });
-      setPhysicalCounts(initialMap);
+      const res = await api.get(`/conteos/trabajadores?sucursal_id=${sucId}`);
+      const list = res.data || [];
+      setTrabajadores(list);
+      if (list.length > 0 && !formData.encargado_id) {
+        setFormData(prev => ({ ...prev, encargado_id: list[0].id }));
+      }
     } catch (err) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
+      console.error('Error al cargar trabajadores:', err);
     }
   };
 
-  const handleCreateCount = async (e) => {
+  useEffect(() => {
+    fetchConteos();
+  }, [selectedBranch, user]);
+
+  useEffect(() => {
+    const targetSuc = formData.sucursal_id || selectedBranch?.id || 1;
+    fetchTrabajadores(targetSuc);
+  }, [formData.sucursal_id, selectedBranch]);
+
+  const handleOpenProgramar = () => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    const defSuc = (!isAdmin && user?.sucursal_id) ? user.sucursal_id : (selectedBranch?.id || 1);
+    setFormData({
+      sucursal_id: defSuc,
+      encargado_id: trabajadores[0]?.id || '',
+      trabajadores_apoyo: [],
+      fecha_programada: new Date(Date.now() + 86400000).toISOString().split('T')[0],
+      hora_programada: '08:30',
+      estrato_abc: 'A',
+      observaciones: 'Auditoría de inventario con control de lotes y vencimientos'
+    });
+    setBusquedaTrabajador('');
+    setIsNewCountOpen(true);
+  };
+
+  const handleToggleApoyo = (id) => {
+    setFormData(prev => {
+      const current = prev.trabajadores_apoyo || [];
+      return {
+        ...prev,
+        trabajadores_apoyo: current.includes(id) ? current.filter(x => x !== id) : [...current, id]
+      };
+    });
+  };
+
+  const handleCreateConteo = async (e) => {
     e.preventDefault();
+    if (!formData.encargado_id) {
+      setErrorMsg('Debe designar un encargado responsable para el conteo.');
+      return;
+    }
     setSaving(true);
+    setErrorMsg('');
     try {
-      await api.post('/conteos', {
-        sucursal_id: selectedBranch.id,
-        estrato_abc: estratoAbc,
-        observaciones: observaciones
-      });
+      await api.post('/conteos', formData);
+      setSuccessMsg('✓ Conteo programado exitosamente. Asignaciones listas para integración WhatsApp.');
       setIsNewCountOpen(false);
-      setSuccessMsg('Auditoría cíclica programada y muestra de productos generada.');
-      setTimeout(() => setSuccessMsg(''), 3000);
       fetchConteos();
     } catch (err) {
-      alert(err.message);
+      setErrorMsg(err.message || 'Error al programar conteo');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSaveDraft = async () => {
+  const handleOpenDetail = async (id) => {
+    setLoading(true);
+    try {
+      const res = await api.get(`/conteos/${id}`);
+      const data = res.data;
+      setSelectedConteo(data);
+      const initialMap = {};
+      data.detalles?.forEach((d) => {
+        initialMap[d.producto_id] = d.stock_fisico !== null ? d.stock_fisico : '';
+      });
+      setPhysicalCounts(initialMap);
+      setIsDetailOpen(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveCounts = async () => {
     if (!selectedConteo) return;
     setSaving(true);
     try {
-      const items = Object.entries(physicalCounts)
-        .filter(([_, val]) => val.stock_fisico !== '')
-        .map(([prodId, val]) => ({
-          producto_id: parseInt(prodId),
-          stock_fisico: parseInt(val.stock_fisico),
-          justificacion: val.justificacion
-        }));
-
+      const items = Object.entries(physicalCounts).map(([prodId, val]) => ({
+        producto_id: parseInt(prodId),
+        stock_fisico: val === '' ? null : parseInt(val),
+        justificacion: 'Toma física en almacén'
+      }));
       await api.post(`/conteos/${selectedConteo.id}/guardar`, { items });
-      setSuccessMsg('Tomas físicas guardadas.');
-      setTimeout(() => setSuccessMsg(''), 3000);
-      handleOpenConteo(selectedConteo.id);
+      setSuccessMsg('Tomas físicas guardadas correctamente.');
+      handleOpenDetail(selectedConteo.id);
       fetchConteos();
     } catch (err) {
-      alert(err.message);
+      setErrorMsg(err.message);
     } finally {
       setSaving(false);
     }
   };
 
   const handleReconcile = async () => {
-    if (!window.confirm('¿Confirmas aplicar la conciliación? Se ajustará el inventario del sistema y se generarán los asientos contables en el Kardex.')) {
-      return;
-    }
-
+    if (!selectedConteo) return;
+    if (!window.confirm('¿Confirmar conciliación? Se ajustará el inventario en el Kardex.')) return;
     setSaving(true);
     try {
-      // Primero guardar tomas físicas
-      await handleSaveDraft();
-      // Luego ejecutar conciliación
       await api.post(`/conteos/${selectedConteo.id}/conciliar`, {});
-      setSuccessMsg('¡Conciliación completada! Kardex e inventario actualizados con éxito.');
-      setTimeout(() => setSuccessMsg(''), 4000);
-      handleOpenConteo(selectedConteo.id);
+      setSuccessMsg('Conciliación completada exitosamente.');
+      handleOpenDetail(selectedConteo.id);
       fetchConteos();
     } catch (err) {
-      alert(err.message);
+      setErrorMsg(err.message);
     } finally {
       setSaving(false);
     }
   };
 
+  const trabajadoresFiltrados = trabajadores.filter(t => {
+    const q = busquedaTrabajador.toLowerCase();
+    return `${t.nombres} ${t.apellidos} ${t.rol_nombre}`.toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-6">
-      {/* Encabezado */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Cabecera */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-3xl border shadow-xs">
         <div>
-          <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">
-            Auditorías Físicas y Conteos Cíclicos por Estrato ABC
-          </h1>
-          <p className="text-xs text-stone-500">
-            Sucursal: <span className="font-bold text-stone-800">{selectedBranch?.nombre}</span> – Control interno para eliminar falsos agotamientos y pérdidas no registradas.
+          <div className="flex items-center gap-2">
+            <span className="p-2 bg-amber-100 rounded-xl text-lg">📋</span>
+            <h1 className="text-xl font-extrabold text-stone-900 tracking-tight">Programación y Asignación de Conteos Físicos</h1>
+          </div>
+          <p className="text-xs text-stone-500 mt-1">
+            Programe auditorías de inventario, asigne encargados principales y trabajadores de apoyo con fecha y hora.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsNewCountOpen(true)}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-mass-yellow hover:bg-amber-400 text-stone-950 text-xs font-extrabold shadow-sm transition"
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>Programar Conteo Cíclico</span>
-          </button>
-          <button
-            onClick={fetchConteos}
-            className="p-2 rounded-xl bg-white border border-stone-200 text-stone-600 hover:bg-stone-50"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
+        <button
+          onClick={handleOpenProgramar}
+          className="px-4 py-2.5 bg-mass-yellow hover:bg-amber-400 font-extrabold text-stone-950 rounded-xl text-xs shadow-xs border border-amber-300 flex items-center gap-1.5 transition active:scale-95"
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>Programar Conteo</span>
+        </button>
       </div>
 
       {successMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2 font-bold animate-fadeIn">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{successMsg}</span>
+        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold">
+          {successMsg}
         </div>
       )}
 
-      {/* Lista de Conteos Programados */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-sm">
-        <div className="p-4 bg-stone-50 border-b border-stone-200 font-bold text-xs text-stone-700 flex justify-between items-center">
-          <span>Historial de Auditorías Físicas</span>
-          <span className="text-stone-500 font-normal">Estratos: A (Mensual), B (Trimestral), C (Semestral)</span>
-        </div>
-
-        <div className="overflow-x-auto text-xs">
+      {/* Tabla de Conteos */}
+      <div className="bg-white rounded-3xl border shadow-xs overflow-hidden text-xs">
+        <div className="overflow-x-auto">
           <table className="w-full text-left">
-            <thead className="bg-stone-100 text-stone-600 uppercase text-[10px] font-bold border-b border-stone-200">
+            <thead className="bg-stone-50 text-stone-500 uppercase text-[10px] font-extrabold border-b">
               <tr>
-                <th className="py-3 px-4">Código</th>
-                <th className="py-3 px-4">Fecha Prog.</th>
-                <th className="py-3 px-4">Estrato Muestreado</th>
-                <th className="py-3 px-4">Supervisor</th>
-                <th className="py-3 px-4 text-center">Items</th>
-                <th className="py-3 px-4 text-center">Discrepancias</th>
-                <th className="py-3 px-4">Estado</th>
-                <th className="py-3 px-4 text-right">Acción</th>
+                <th className="p-3">Código</th>
+                <th className="p-3">Sucursal</th>
+                <th className="p-3">Fecha & Hora</th>
+                <th className="p-3">Encargado Responsable</th>
+                <th className="p-3">Personal de Apoyo</th>
+                <th className="p-3">Muestra ABC</th>
+                <th className="p-3">Avance</th>
+                <th className="p-3">Estado</th>
+                <th className="p-3 text-right">Acciones</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-stone-200 font-medium">
-              {conteos.map((c) => (
-                <tr key={c.id} className="hover:bg-amber-50/50">
-                  <td className="py-3 px-4 font-mono font-bold text-stone-900">{c.codigo_conteo}</td>
-                  <td className="py-3 px-4">{c.fecha_programada}</td>
-                  <td className="py-3 px-4">
-                    <span className="font-bold">Estrato {c.estrato_abc}</span>
-                  </td>
-                  <td className="py-3 px-4 text-stone-700">{c.supervisor_nombres} {c.supervisor_apellidos}</td>
-                  <td className="py-3 px-4 text-center font-bold">{c.items_contados || 0} / {c.total_items}</td>
-                  <td className="py-3 px-4 text-center">
-                    <span className={`px-2 py-0.5 rounded text-[11px] font-bold ${
-                      parseInt(c.items_con_discrepancia || 0) > 0 ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'
-                    }`}>
-                      {c.items_con_discrepancia || 0} dif.
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                      c.estado === 'CONCILIADO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      {c.estado}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <button
-                      onClick={() => handleOpenConteo(c.id)}
-                      className="px-3 py-1.5 bg-stone-900 hover:bg-black text-amber-400 font-bold rounded-lg text-xs transition"
-                    >
-                      {c.estado === 'CONCILIADO' ? 'Ver Resultados' : 'Realizar Conteo'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y font-medium text-stone-800">
+              {conteos.map((c) => {
+                const apoyos = (c.asignaciones || []).filter(a => a.tipo_asignacion === 'APOYO');
+                return (
+                  <tr key={c.id} className="hover:bg-stone-50/80 transition">
+                    <td className="p-3 font-mono font-black text-mass-red">{c.codigo_conteo}</td>
+                    <td className="p-3 font-bold">{c.sucursal_nombre}</td>
+                    <td className="p-3">
+                      <div>📅 {c.fecha_programada}</div>
+                      <div className="text-[10px] text-stone-500">⏰ {c.hora_programada ? c.hora_programada.substring(0, 5) : '08:00'} hrs</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-extrabold text-stone-900">
+                        ⭐ {c.encargado_nombres ? `${c.encargado_nombres} ${c.encargado_apellidos}` : 'Sin asignar'}
+                      </div>
+                      {c.encargado_telefono && <div className="text-[10px] text-stone-500">📱 {c.encargado_telefono}</div>}
+                    </td>
+                    <td className="p-3">
+                      {apoyos.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {apoyos.map(a => (
+                            <span key={a.usuario_id} className="px-2 py-0.5 bg-stone-100 rounded text-[10px] font-bold border">
+                              👤 {a.nombres}
+                            </span>
+                          ))}
+                        </div>
+                      ) : <span className="text-stone-400 italic text-[10px]">Solo encargado</span>}
+                    </td>
+                    <td className="p-3 font-black text-amber-700">Clase {c.estrato_abc}</td>
+                    <td className="p-3">
+                      <span className="font-bold">{c.items_contados || 0}</span> / {c.total_items}
+                    </td>
+                    <td className="p-3">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-stone-100 border">
+                        {c.estado}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => handleOpenDetail(c.id)}
+                        className="px-2.5 py-1.5 bg-stone-900 hover:bg-stone-800 text-white rounded-lg text-[10px] font-bold"
+                      >
+                        Ver Detalle
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Modal de Conteo Físico y Conciliación */}
-      {selectedConteo && (
-        <Modal
-          isOpen={!!selectedConteo}
-          onClose={() => setSelectedConteo(null)}
-          title={`Auditoría Física: ${selectedConteo.codigo_conteo} (Estrato ${selectedConteo.estrato_abc})`}
-          maxWidth="max-w-4xl"
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center">
-              <div>
-                <span className="font-bold text-stone-900">Estado: {selectedConteo.estado}</span>
-                <p className="text-[11px] text-stone-500">
-                  Ingresa las existencias físicas reales del almacén. La diferencia se calculará automáticamente.
-                </p>
-              </div>
-              {selectedConteo.estado !== 'CONCILIADO' && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSaveDraft}
-                    disabled={saving}
-                    className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 font-bold rounded-lg text-stone-800"
-                  >
-                    Guardar Borrador
-                  </button>
-                  <button
-                    onClick={handleReconcile}
-                    disabled={saving}
-                    className="px-3 py-1.5 bg-mass-red hover:bg-red-700 font-bold rounded-lg text-white shadow"
-                  >
-                    Aplicar Conciliación & Kardex
-                  </button>
-                </div>
-              )}
+      {/* Modal Programar Conteo */}
+      {isNewCountOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-xl bg-white rounded-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto text-xs shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <h2 className="text-base font-extrabold text-stone-900">Programar Conteo de Inventario</h2>
+              <button onClick={() => setIsNewCountOpen(false)} className="text-stone-400 font-bold">✕</button>
             </div>
 
-            <div className="border border-stone-200 rounded-xl overflow-hidden max-h-96 overflow-y-auto">
-              <table className="w-full text-left">
-                <thead className="bg-stone-100 text-stone-600 uppercase text-[10px] font-bold sticky top-0">
-                  <tr>
-                    <th className="p-2.5">Producto</th>
-                    <th className="p-2.5">Clase ABC</th>
-                    <th className="p-2.5 text-center">Stock Sistema</th>
-                    <th className="p-2.5 text-center w-28">Stock Físico</th>
-                    <th className="p-2.5 text-center">Diferencia</th>
-                    <th className="p-2.5">Justificación de Ajuste</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-200 font-medium">
-                  {selectedConteo.detalles?.map((det) => {
-                    const currentVal = physicalCounts[det.producto_id]?.stock_fisico ?? '';
-                    const fisicoNum = currentVal !== '' ? parseInt(currentVal) : null;
-                    const diff = fisicoNum !== null ? fisicoNum - det.stock_sistema : null;
+            <form onSubmit={handleCreateConteo} className="space-y-4">
+              <div>
+                <label className="font-bold block mb-1">1. Sucursal *</label>
+                <div className="p-2.5 bg-amber-50 rounded-xl font-bold border border-amber-200">
+                  {selectedBranch?.nombre || 'Sede asignada'}
+                </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold block mb-1">2. Fecha de Inicio *</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.fecha_programada}
+                    onChange={e => setFormData({ ...formData, fecha_programada: e.target.value })}
+                    className="w-full p-2 border rounded-xl font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold block mb-1">Hora de Inicio *</label>
+                  <input
+                    type="time"
+                    required
+                    value={formData.hora_programada}
+                    onChange={e => setFormData({ ...formData, hora_programada: e.target.value })}
+                    className="w-full p-2 border rounded-xl font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">3. Estratificación ABC *</label>
+                <select
+                  value={formData.estrato_abc}
+                  onChange={e => setFormData({ ...formData, estrato_abc: e.target.value })}
+                  className="w-full p-2.5 border rounded-xl bg-white font-bold"
+                >
+                  <option value="A">Clase A (Alta Inversión - 80% Capital)</option>
+                  <option value="B">Clase B (Inversión Moderada - 15% Capital)</option>
+                  <option value="C">Clase C (Baja Inversión - 5% Capital)</option>
+                  <option value="TODOS">Catálogo Completo</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">4. Encargado Responsable *</label>
+                <select
+                  value={formData.encargado_id}
+                  onChange={e => setFormData({ ...formData, encargado_id: parseInt(e.target.value) })}
+                  className="w-full p-2.5 border rounded-xl bg-white font-extrabold"
+                  required
+                >
+                  <option value="">-- Seleccione al Encargado --</option>
+                  {trabajadores.map(t => (
+                    <option key={t.id} value={t.id}>
+                      ⭐ {t.nombres} {t.apellidos} ({t.rol_nombre}) - 📱 {t.telefono}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="font-bold block mb-1">5. Personal de Apoyo</label>
+                <input
+                  type="text"
+                  placeholder="Buscar trabajador..."
+                  value={busquedaTrabajador}
+                  onChange={e => setBusquedaTrabajador(e.target.value)}
+                  className="w-full p-2 border rounded-xl text-xs mb-2"
+                />
+                <div className="max-h-32 overflow-y-auto border rounded-xl divide-y p-1">
+                  {trabajadoresFiltrados.map(t => {
+                    const isEnc = parseInt(formData.encargado_id) === t.id;
+                    const isApoyo = formData.trabajadores_apoyo.includes(t.id);
                     return (
-                      <tr key={det.id} className="hover:bg-amber-50/40">
-                        <td className="p-2.5">
-                          <div className="font-bold text-stone-900">{det.producto_nombre}</div>
-                          <div className="text-[10px] text-stone-400 font-mono">{det.codigo_sku}</div>
-                        </td>
-                        <td className="p-2.5">
-                          <AbcBadge clase={det.clasificacion_abc} />
-                        </td>
-                        <td className="p-2.5 text-center font-bold text-stone-900">
-                          {det.stock_sistema} un.
-                        </td>
-                        <td className="p-2.5 text-center">
-                          {selectedConteo.estado === 'CONCILIADO' ? (
-                            <span className="font-extrabold text-stone-950">{det.stock_fisico} un.</span>
-                          ) : (
-                            <input
-                              type="number"
-                              min="0"
-                              value={currentVal}
-                              onChange={(e) =>
-                                setPhysicalCounts({
-                                  ...physicalCounts,
-                                  [det.producto_id]: {
-                                    ...physicalCounts[det.producto_id],
-                                    stock_fisico: e.target.value
-                                  }
-                                })
-                              }
-                              placeholder="Físico"
-                              className="w-20 px-2 py-1 border border-stone-300 rounded text-center font-bold focus:ring-1 focus:ring-amber-400 focus:outline-none"
-                            />
-                          )}
-                        </td>
-                        <td className="p-2.5 text-center">
-                          {diff !== null ? (
-                            <span
-                              className={`font-extrabold px-2 py-0.5 rounded text-[11px] ${
-                                diff === 0
-                                  ? 'text-emerald-700 bg-emerald-50'
-                                  : diff > 0
-                                  ? 'text-blue-700 bg-blue-50'
-                                  : 'text-red-700 bg-red-50'
-                              }`}
-                            >
-                              {diff > 0 ? `+${diff}` : diff}
-                            </span>
-                          ) : (
-                            <span className="text-stone-400">-</span>
-                          )}
-                        </td>
-                        <td className="p-2.5">
-                          {selectedConteo.estado === 'CONCILIADO' ? (
-                            <span className="text-stone-600 text-[11px]">{det.justificacion || 'Sin observaciones'}</span>
-                          ) : (
-                            <input
-                              type="text"
-                              value={physicalCounts[det.producto_id]?.justificacion ?? ''}
-                              onChange={(e) =>
-                                setPhysicalCounts({
-                                  ...physicalCounts,
-                                  [det.producto_id]: {
-                                    ...physicalCounts[det.producto_id],
-                                    justificacion: e.target.value
-                                  }
-                                })
-                              }
-                              placeholder="Ej: Merma no informada / Conteo conforme"
-                              className="w-full px-2 py-1 border border-stone-300 rounded text-[11px] focus:ring-1 focus:ring-amber-400 focus:outline-none"
-                            />
-                          )}
-                        </td>
-                      </tr>
+                      <div
+                        key={t.id}
+                        onClick={() => !isEnc && handleToggleApoyo(t.id)}
+                        className={`p-2 rounded-lg flex items-center justify-between cursor-pointer ${
+                          isEnc ? 'bg-amber-100 opacity-75' : isApoyo ? 'bg-blue-100 font-bold' : 'hover:bg-stone-50'
+                        }`}
+                      >
+                        <div>{t.nombres} {t.apellidos} ({t.rol_nombre})</div>
+                        {isEnc && <span className="text-[9px] font-black bg-amber-400 px-1.5 rounded">ENCARGADO</span>}
+                      </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-[11px] text-emerald-950">
+                📱 <strong>Preparación Chatbot WhatsApp:</strong> Las asignaciones se guardan con estado <code className="font-bold">PENDIENTE_INTEGRACION</code> para su notificación automática posterior.
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <button type="button" onClick={() => setIsNewCountOpen(false)} className="px-4 py-2 border rounded-xl font-bold">Cancelar</button>
+                <button type="submit" disabled={saving} className="px-5 py-2 bg-mass-yellow text-stone-950 font-extrabold rounded-xl">
+                  {saving ? 'Guardando...' : 'Confirmar y Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Detalle Conteo */}
+      {isDetailOpen && selectedConteo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-3xl bg-white rounded-3xl p-6 space-y-4 max-h-[92vh] overflow-y-auto text-xs shadow-2xl">
+            <div className="flex justify-between items-center pb-2 border-b">
+              <div>
+                <span className="font-mono font-black text-mass-red text-base">{selectedConteo.codigo_conteo}</span>
+                <span className="ml-2 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-stone-900 text-amber-300">{selectedConteo.estado}</span>
+              </div>
+              <button onClick={() => setIsDetailOpen(false)} className="text-stone-400 font-bold">✕</button>
+            </div>
+
+            <div className="p-3 bg-stone-50 rounded-xl border">
+              <div className="font-bold text-stone-900 mb-1">Personal Asignado:</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(selectedConteo.asignaciones || []).map(a => (
+                  <div key={a.usuario_id} className="p-1.5 bg-white border rounded text-[11px]">
+                    {a.tipo_asignacion === 'ENCARGADO_PRINCIPAL' ? '⭐ Encargado: ' : '👤 Apoyo: '}
+                    <strong>{a.nombres} {a.apellidos}</strong> (📱 {a.telefono})
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="border rounded-2xl overflow-hidden max-h-64 overflow-y-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-stone-50 border-b uppercase text-[9px] font-bold">
+                  <tr>
+                    <th className="p-2">Producto</th>
+                    <th className="p-2 text-center">Stock Sistema</th>
+                    <th className="p-2 text-center">Toma Física</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y font-semibold">
+                  {(selectedConteo.detalles || []).map(d => (
+                    <tr key={d.producto_id}>
+                      <td className="p-2 font-bold">{d.producto_nombre}</td>
+                      <td className="p-2 text-center">{d.stock_sistema}</td>
+                      <td className="p-2 text-center">
+                        <input
+                          type="number"
+                          value={physicalCounts[d.producto_id] !== undefined ? physicalCounts[d.producto_id] : ''}
+                          onChange={e => setPhysicalCounts({ ...physicalCounts, [d.producto_id]: e.target.value })}
+                          disabled={selectedConteo.estado === 'FINALIZADO' || selectedConteo.estado === 'CONCILIADO'}
+                          className="w-16 p-1 border rounded text-center font-bold"
+                        />
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <button type="button" onClick={() => setIsDetailOpen(false)} className="px-4 py-2 border rounded-xl font-bold">Cerrar</button>
+              {selectedConteo.estado !== 'FINALIZADO' && selectedConteo.estado !== 'CONCILIADO' && (
+                <>
+                  <button type="button" onClick={handleSaveCounts} className="px-4 py-2 bg-stone-900 text-white font-bold rounded-xl">Guardar</button>
+                  <button type="button" onClick={handleReconcile} className="px-4 py-2 bg-mass-yellow text-stone-950 font-extrabold rounded-xl">Conciliar</button>
+                </>
+              )}
+            </div>
           </div>
-        </Modal>
+        </div>
       )}
-
-      {/* Modal Programar Conteo */}
-      <Modal
-        isOpen={isNewCountOpen}
-        onClose={() => setIsNewCountOpen(false)}
-        title="Programar Toma Física Cíclica"
-        maxWidth="max-w-md"
-      >
-        <form onSubmit={handleCreateCount} className="space-y-4 text-xs">
-          <div>
-            <label className="block font-bold text-stone-700 mb-1">Estrato ABC a Auditar:</label>
-            <select
-              value={estratoAbc}
-              onChange={(e) => {
-                setEstratoAbc(e.target.value);
-                if (e.target.value === 'A') setObservaciones('Auditoría física mensual de alta inversión (Clase A)');
-                if (e.target.value === 'B') setObservaciones('Auditoría física trimestral (Clase B)');
-                if (e.target.value === 'C') setObservaciones('Auditoría física semestral (Clase C)');
-                if (e.target.value === 'TODOS') setObservaciones('Conteo general total de almacén');
-              }}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none font-bold"
-            >
-              <option value="A">Clase A (Prioridad Alta - 80% Inversión - Mensual)</option>
-              <option value="B">Clase B (Prioridad Media - 15% Inversión - Trimestral)</option>
-              <option value="C">Clase C (Prioridad Baja - 5% Inversión - Semestral)</option>
-              <option value="TODOS">Todos los Productos (Inventario General)</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block font-bold text-stone-700 mb-1">Observaciones / Motivo:</label>
-            <textarea
-              rows="3"
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-400 focus:outline-none"
-            ></textarea>
-          </div>
-
-          <button
-            type="submit"
-            disabled={saving}
-            className="w-full py-3 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-bold rounded-xl text-xs transition shadow disabled:opacity-50"
-          >
-            {saving ? 'Generando Muestra...' : 'Crear Auditoría Cíclica'}
-          </button>
-        </form>
-      </Modal>
     </div>
   );
 };
+
+export default ConteosView;

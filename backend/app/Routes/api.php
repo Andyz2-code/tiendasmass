@@ -31,6 +31,7 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->putMapping('/productos/{id}', 'ProductoController@update', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/productos/import-excel', 'ProductoController@importExcel', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/upload/image', 'UploadController@uploadImage', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/upload/banner', 'UploadController@uploadBanner', ['jwt', 'role:Administrador,Supervisor']);
 
     // 4. Mapeo de Inventarios, Lotes y Algoritmos (PEPS FIFO, Matriz ABC, POR, IOI)
     $api->getMapping('/inventarios', 'InventarioController@index', ['jwt', 'role:Administrador,Supervisor']);
@@ -58,8 +59,11 @@ $router->group(['prefix' => 'api'], function ($api) {
 
     // 7. Mapeo de Auditorías y Conteos Físicos Cíclicos
     $api->getMapping('/conteos', 'ConteoCiclicoController@index', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/conteos/trabajadores', 'ConteoCiclicoController@trabajadores', ['jwt', 'role:Administrador,Supervisor']);
     $api->getMapping('/conteos/{id}', 'ConteoCiclicoController@show', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/conteos', 'ConteoCiclicoController@store', ['jwt', 'role:Administrador,Supervisor']);
+    $api->putMapping('/conteos/{id}', 'ConteoCiclicoController@update', ['jwt', 'role:Administrador,Supervisor']);
+    $api->patchMapping('/conteos/{id}/cancelar', 'ConteoCiclicoController@cancel', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/conteos/{id}/guardar', 'ConteoCiclicoController@saveCounts', ['jwt', 'role:Administrador,Supervisor']);
     $api->postMapping('/conteos/{id}/conciliar', 'ConteoCiclicoController@reconcile', ['jwt', 'role:Administrador,Supervisor']);
 

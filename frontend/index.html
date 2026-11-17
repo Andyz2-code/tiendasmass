@@ -1682,18 +1682,18 @@ return (
                 <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
                   <span className="text-4xl">🔍</span>
                   <h3 className="text-sm font-bold text-stone-900">
-                    {debouncedSearch ? `No encontramos productos para "${debouncedSearch}"` : 'No encontramos productos con esos filtros'}
+                    {debouncedSearch ? 'No se encontraron productos' : 'No encontramos productos con esos filtros'}
                   </h3>
                   <p className="text-xs text-stone-500 max-w-md mx-auto">
                     {debouncedSearch 
-                      ? 'Revisa la ortografía o intenta buscar por una categoría o término más general (ej. arroz, leche, café, galletas).' 
+                      ? 'No encontramos productos que coincidan con tu búsqueda. Verifica el nombre o intenta con otra palabra.' 
                       : 'Prueba cambiando el rango de precio, marcas o limpiando los filtros seleccionados.'}
                   </p>
                   <button
                     onClick={handleResetAllFilters}
                     className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow-xs transition border border-amber-300"
                   >
-                    {debouncedSearch ? 'Limpiar búsqueda y ver catálogo completo' : `Ver Todos los Productos (${allProducts.length})`}
+                    {debouncedSearch ? 'Limpiar búsqueda y volver a mostrar el catálogo' : `Ver Todos los Productos (${allProducts.length})`}
                   </button>
                 </div>
               )}

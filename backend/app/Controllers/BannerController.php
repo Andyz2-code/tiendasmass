@@ -107,9 +107,9 @@ class BannerController
             return;
         }
 
+        // Mantener la imagen anterior si no se selecciona un reemplazo
         if (empty($input['imagen_url']) || trim($input['imagen_url']) === '') {
-            Response::json(['status' => 'error', 'message' => 'La imagen del banner es obligatoria.'], 400);
-            return;
+            $input['imagen_url'] = $banner['imagen_url'];
         }
 
         if ($user && ($user['rol_nombre'] ?? '') === 'Supervisor') {
