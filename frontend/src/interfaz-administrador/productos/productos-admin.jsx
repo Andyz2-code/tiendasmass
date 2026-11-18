@@ -8,7 +8,6 @@ import {
   Package,
   Plus,
   FileSpreadsheet,
-  Download,
   Edit2,
   Search,
   Filter,
@@ -122,22 +121,6 @@ export const ProductosAdminView = () => {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const csvContent =
-      "codigo_sku,codigo_barras,nombre,descripcion,categoria,precio_venta,costo_base,stock_inicial,unidad_medida,es_perecedero,imagen_url\n" +
-      "SKU-ARR-010,7750123450011,Arroz Extra Costeño 1kg,Arroz seleccionado de grano largo,Abarrotes y Despensa,4.80,3.70,80,BOLSA,0,https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400\n" +
-      "SKU-BEB-011,7750123450022,Agua Mineral San Luis 625ml,Agua de mesa sin gas,Bebidas y Licores,2.00,1.30,120,BOTELLA,0,https://images.unsplash.com/photo-1559839914-ba2ac55d683a?w=400\n";
-
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'Plantilla_Oficial_Importacion_Productos_Mass.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="space-y-6">
       {/* Cabecera Principal */}
@@ -154,16 +137,6 @@ export const ProductosAdminView = () => {
 
         {/* Botones de Acción de Cabecera */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            type="button"
-            onClick={handleDownloadTemplate}
-            className="px-3.5 py-2 rounded-xl bg-white border border-stone-300 hover:bg-stone-50 text-stone-700 font-bold text-xs shadow-xs transition flex items-center gap-1.5"
-            title="Descargar plantilla de Excel"
-          >
-            <Download className="w-4 h-4 text-emerald-600" />
-            <span>Plantilla Excel</span>
-          </button>
-
           <button
             type="button"
             onClick={() => setIsImportModalOpen(true)}

@@ -207,51 +207,68 @@ class ProductoController {
 
         $db = \App\Helpers\Database::getConnection();
 
-        // Mapear categorías existentes por nombre y por id
-        $catsRaw = $db->query("SELECT id, LOWER(nombre) as nombre_norm FROM categorias")->fetchAll(\PDO::FETCH_ASSOC);
+        // Mapear categorías existentes por nombre y por id (soportando nombres acentuados)
+        $catsRaw = $db->query("SELECT id, nombre, LOWER(nombre) as nombre_norm FROM categorias WHERE estado = 1")->fetchAll(\PDO::FETCH_ASSOC);
         $catMap = [];
         foreach ($catsRaw as $c) {
             $catMap[$c['id']] = (int)$c['id'];
             $catMap[trim($c['nombre_norm'])] = (int)$c['id'];
+            $noAccents = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], trim($c['nombre_norm']));
+            $catMap[$noAccents] = (int)$c['id'];
         }
 
-        // Sucursales activas para administradores
-        $activeBranches = $isSupervisor 
-            ? [$supervisorBranchId] 
-            : $db->query("SELECT id FROM sucursales WHERE estado = 1")->fetchAll(\PDO::FETCH_COLUMN);
+        // Sucursales activas: Supervisor solo su sucursal; Administrador sucursal seleccionada
+        $targetBranches = $isSupervisor ? [$supervisorBranchId] : [$targetSucursalId];
 
         $totalProcesados = count($rows);
         $importados = 0;
+        $actualizados = 0;
         $omitidosDuplicados = 0;
         $errores = 0;
         $detallesErrores = [];
         $productosCreados = [];
+        $productosActualizados = [];
         $batchSkus = [];
         $batchBarcodes = [];
 
+        // Helper para extraer campos flexibles (soporta encabezados de catálogo y técnicos)
+        $getVal = function(array $r, array $keys, $default = '') {
+            foreach ($keys as $k) {
+                if (isset($r[$k]) && trim((string)$r[$k]) !== '') {
+                    return trim((string)$r[$k]);
+                }
+                $lowerK = strtolower($k);
+                if (isset($r[$lowerK]) && trim((string)$r[$lowerK]) !== '') {
+                    return trim((string)$r[$lowerK]);
+                }
+            }
+            return $default;
+        };
+
         foreach ($rows as $index => $row) {
             $numFila = $index + 1;
-            $sku = strtoupper(trim((string)($row['codigo_sku'] ?? '')));
-            $barcode = trim((string)($row['codigo_barras'] ?? ''));
-            $nombre = trim((string)($row['nombre'] ?? ''));
-            $descripcion = trim((string)($row['descripcion'] ?? ''));
-            $categoriaInput = trim((string)($row['categoria'] ?? $row['categoria_id'] ?? ''));
-            $precioVenta = (float)($row['precio_venta'] ?? 0);
-            $costoBase = (float)($row['costo_base'] ?? 0);
-            $stockInicial = isset($row['stock_inicial']) ? max(0, (int)$row['stock_inicial']) : 50;
-            $unidadMedida = strtoupper(trim((string)($row['unidad_medida'] ?? 'UNIDAD')));
-            $esPerecedero = (!empty($row['es_perecedero']) && in_array(strtoupper((string)$row['es_perecedero']), ['1', 'SI', 'TRUE', 'S'])) ? 1 : 0;
-            $imagenUrl = trim((string)($row['imagen_url'] ?? 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=400'));
+            
+            // Extracción con soporte dual (Columnas del Catálogo Oficial vs Técnicas)
+            $sku = strtoupper($getVal($row, ['SKU / BARRAS', 'SKU/BARRAS', 'sku_barras', 'codigo_sku', 'sku', 'Código SKU', 'SKU']));
+            $barcode = $getVal($row, ['codigo_barras', 'codigo_barra', 'barcode', 'Barras', 'Código de Barras']);
+            $nombre = $getVal($row, ['NOMBRE DEL PRODUCTO', 'NOMBRE', 'nombre del producto', 'nombre', 'producto', 'Nombre']);
+            $descripcion = $getVal($row, ['descripcion', 'DESCRIPCIÓN', 'descripcion_producto'], '');
+            $categoriaInput = $getVal($row, ['CATEGORÍA', 'CATEGORIA', 'categoría', 'categoria', 'categoria_id', 'Categoría']);
+            $precioRaw = $getVal($row, ['PRECIO DE VENTA', 'PRECIO', 'precio de venta', 'precio_venta', 'precio', 'Precio de Venta'], '0');
+            $costoRaw = $getVal($row, ['COSTO BASE', 'COSTO', 'costo base', 'costo_base', 'costo', 'Costo Base'], '0');
+            $stockRaw = $getVal($row, ['STOCK ACTUAL', 'STOCK', 'stock actual', 'stock_actual', 'stock_inicial', 'stock', 'Stock Actual'], '50');
+            $tipoRaw = $getVal($row, ['TIPO', 'tipo', 'es_perecedero', 'Tipo', 'Tipo de Producto'], 'No Perecedero');
+            $fotoRaw = $getVal($row, ['FOTO', 'foto', 'Foto', 'IMAGEN', 'imagen', 'imagen_url'], '');
+
+            $precioVenta = (float)str_replace(',', '.', (string)$precioRaw);
+            $costoBase = (float)str_replace(',', '.', (string)$costoRaw);
+            $stockInicial = max(0, (int)$stockRaw);
+            $esPerecedero = in_array(strtoupper(trim((string)$tipoRaw)), ['PERECEDERO', '1', 'SI', 'TRUE', 'S', 'PEPS', 'FRESCO PEPS'], true) ? 1 : 0;
 
             // 1. Validaciones de campos obligatorios
             if ($sku === '') {
                 $errores++;
-                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => 'N/A', 'error' => 'El código SKU es obligatorio.'];
-                continue;
-            }
-            if ($barcode === '') {
-                $errores++;
-                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => 'El código de barras es obligatorio.'];
+                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => 'N/A', 'error' => 'El código SKU / BARRAS es obligatorio.'];
                 continue;
             }
             if ($nombre === '') {
@@ -269,67 +286,171 @@ class ProductoController {
                 $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "El costo base (S/. {$costoBase}) debe ser un número mayor a 0."];
                 continue;
             }
+            if ((int)$stockRaw < 0) {
+                $errores++;
+                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "El stock inicial ({$stockRaw}) no puede ser negativo."];
+                continue;
+            }
 
-            // 2. Validación de categoría
+            // 2. Validación de categoría contra la base de datos
             $catId = null;
             if (is_numeric($categoriaInput) && isset($catMap[(int)$categoriaInput])) {
                 $catId = (int)$categoriaInput;
             } else {
-                $catNorm = strtolower($categoriaInput);
+                $catNorm = strtolower(trim((string)$categoriaInput));
+                $catSimple = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], $catNorm);
                 if (isset($catMap[$catNorm])) {
                     $catId = $catMap[$catNorm];
+                } elseif (isset($catMap[$catSimple])) {
+                    $catId = $catMap[$catSimple];
                 } else {
-                    $catId = 1; // Default a Abarrotes y Despensa si no coincide
+                    foreach ($catsRaw as $c) {
+                        $dbSimple = str_replace(['á', 'é', 'í', 'ó', 'ú'], ['a', 'e', 'i', 'o', 'u'], strtolower($c['nombre']));
+                        if ($catSimple === $dbSimple || strpos($dbSimple, $catSimple) !== false) {
+                            $catId = (int)$c['id'];
+                            break;
+                        }
+                    }
                 }
             }
 
-            // 3. Detección de duplicados en el lote actual
+            if (!$catId) {
+                $errores++;
+                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "La categoría '{$categoriaInput}' no existe en el catálogo del sistema. Revise las categorías activas."];
+                continue;
+            }
+
+            // 3. Detección de duplicados dentro del mismo archivo
             if (isset($batchSkus[$sku])) {
                 $omitidosDuplicados++;
                 $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "Código SKU repetido dentro del mismo archivo Excel (Fila {$batchSkus[$sku]})."];
                 continue;
             }
-            if ($barcode !== '' && isset($batchBarcodes[$barcode])) {
+            $batchSkus[$sku] = $numFila;
+
+            // Barcode derivation si viene vacío
+            if ($barcode === '') {
+                if (preg_match('/^\d{8,14}$/', $sku)) {
+                    $barcode = $sku;
+                } else {
+                    $barcode = '775' . str_pad((string)(abs(crc32($sku)) % 10000000000), 10, '0', STR_PAD_LEFT);
+                }
+            }
+            if (isset($batchBarcodes[$barcode])) {
                 $omitidosDuplicados++;
                 $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "Código de barras repetido dentro del archivo (Fila {$batchBarcodes[$barcode]})."];
                 continue;
             }
-
-            // 4. Detección de duplicados contra la base de datos
-            if ($this->repo->existsBySku($sku)) {
-                $omitidosDuplicados++;
-                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "El producto con SKU '{$sku}' ya existe en la base de datos."];
-                continue;
-            }
-            if ($barcode !== '' && $this->repo->existsByBarcode($barcode)) {
-                $omitidosDuplicados++;
-                $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => "El código de barras '{$barcode}' ya está registrado en el catálogo."];
-                continue;
-            }
-
-            // Registrar en seguimiento del lote
-            $batchSkus[$sku] = $numFila;
             $batchBarcodes[$barcode] = $numFila;
 
-            // 5. Inserción del producto
+            // 4. Identificar si el producto ya existe en la base de datos
+            $existingProd = $this->repo->getBySku($sku);
+            if (!$existingProd && $barcode !== '') {
+                $existingProd = $this->repo->getByBarcode($barcode);
+            }
+
+            // Caso A: Producto Existente -> Actualizar datos e inventario de sucursal
+            if ($existingProd) {
+                try {
+                    $prodId = (int)$existingProd['id'];
+                    $resolvedImg = \App\Services\ProductExcelTemplateService::resolveProductImage($fotoRaw, $existingProd['imagen_url']);
+
+                    $updatePayload = [
+                        'categoria_id'  => $catId,
+                        'nombre'        => $nombre,
+                        'precio_venta'  => $precioVenta,
+                        'costo_base'    => $costoBase,
+                        'es_perecedero' => $esPerecedero,
+                        'imagen_url'    => $resolvedImg
+                    ];
+                    if ($descripcion !== '') {
+                        $updatePayload['descripcion'] = $descripcion;
+                    }
+                    $this->repo->update($prodId, $updatePayload);
+
+                    // Actualizar inventario en la sucursal seleccionada
+                    $fechaVenc = $esPerecedero ? date('Y-m-d', strtotime('+6 months')) : null;
+                    foreach ($targetBranches as $sucId) {
+                        $stmtInv = $db->prepare(
+                            "INSERT INTO inventarios (sucursal_id, producto_id, stock_actual, stock_minimo, stock_maximo, punto_reorden, clasificacion_abc)
+                             VALUES (:suc, :prod, :stock, 10, 200, 25, 'B')
+                             ON DUPLICATE KEY UPDATE stock_actual = :stock_upd"
+                        );
+                        $stmtInv->execute([
+                            ':suc'       => $sucId,
+                            ':prod'      => $prodId,
+                            ':stock'     => $stockInicial,
+                            ':stock_upd' => $stockInicial
+                        ]);
+
+                        if ($stockInicial > 0) {
+                            $codigoLote = 'LOT-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $sku), 0, 4)) . '-' . date('ymd');
+                            $stmtLote = $db->prepare(
+                                "INSERT INTO lotes (sucursal_id, producto_id, codigo_lote, fecha_ingreso, fecha_vencimiento, cantidad_inicial, cantidad_disponible, costo_unitario_compra, ubicacion_almacen, estado)
+                                 VALUES (:suc, :prod, :lote, CURDATE(), :venc, :cant, :disp, :costo, 'PASAJE-EXCEL', 'DISPONIBLE')"
+                            );
+                            $stmtLote->execute([
+                                ':suc'   => $sucId,
+                                ':prod'  => $prodId,
+                                ':lote'  => $codigoLote,
+                                ':venc'  => $fechaVenc,
+                                ':cant'  => $stockInicial,
+                                ':disp'  => $stockInicial,
+                                ':costo' => $costoBase
+                            ]);
+                            $loteId = (int)$db->lastInsertId();
+
+                            $stmtKardex = $db->prepare(
+                                "INSERT INTO movimientos_inventario (sucursal_id, producto_id, lote_id, tipo_movimiento, documento_referencia, cantidad, costo_unitario, saldo_anterior, saldo_nuevo, observaciones)
+                                 VALUES (:suc, :prod, :lote, 'ENTRADA_COMPRA', 'IMPORT-EXCEL-UPD', :cant, :costo, 0, :nuevo, 'Actualización masiva Excel')"
+                            );
+                            $stmtKardex->execute([
+                                ':suc'   => $sucId,
+                                ':prod'  => $prodId,
+                                ':lote'  => $loteId,
+                                ':cant'  => $stockInicial,
+                                ':costo' => $costoBase,
+                                ':nuevo' => $stockInicial
+                            ]);
+                        }
+                    }
+
+                    $actualizados++;
+                    $productosActualizados[] = [
+                        'id'           => $prodId,
+                        'codigo_sku'   => $sku,
+                        'nombre'       => $nombre,
+                        'precio_venta' => $precioVenta,
+                        'stock_actual' => $stockInicial
+                    ];
+                } catch (\Exception $e) {
+                    $errores++;
+                    $detallesErrores[] = ['fila' => $numFila, 'codigo_sku' => $sku, 'error' => 'Error al actualizar producto: ' . $e->getMessage()];
+                }
+                continue;
+            }
+
+            // Caso B: Producto Nuevo -> Insertar en base de datos e inventarios
             try {
+                $resolvedImg = \App\Services\ProductExcelTemplateService::resolveProductImage($fotoRaw);
+
                 $newProdId = $this->repo->create([
                     'categoria_id'  => $catId,
                     'codigo_sku'    => $sku,
                     'codigo_barras' => $barcode,
                     'nombre'        => $nombre,
                     'descripcion'   => $descripcion,
-                    'unidad_medida' => $unidadMedida ?: 'UNIDAD',
+                    'unidad_medida' => 'UNIDAD',
                     'precio_venta'  => $precioVenta,
                     'costo_base'    => $costoBase,
                     'es_perecedero' => $esPerecedero,
-                    'imagen_url'    => $imagenUrl,
+                    'imagen_url'    => $resolvedImg,
                     'estado'        => 1
                 ]);
 
-                // Asignar a inventarios
+                // Asignar a inventarios de sucursales autorizadas
                 $fechaVenc = $esPerecedero ? date('Y-m-d', strtotime('+6 months')) : null;
-                foreach ($activeBranches as $sucId) {
+                foreach ($targetBranches as $sucId) {
                     $stmtInv = $db->prepare(
                         "INSERT INTO inventarios (sucursal_id, producto_id, stock_actual, stock_minimo, stock_maximo, punto_reorden, clasificacion_abc)
                          VALUES (:suc, :prod, :stock, 10, 200, 25, 'B')
@@ -391,84 +512,89 @@ class ProductoController {
         Response::success([
             'total_procesados'          => $totalProcesados,
             'total_importados'          => $importados,
+            'total_nuevos'              => $importados,
+            'total_actualizados'        => $actualizados,
             'total_omitidos_duplicados' => $omitidosDuplicados,
             'total_errores'             => $errores,
             'detalles_errores'          => $detallesErrores,
-            'productos_importados'      => $productosCreados
-        ], "Importación finalizada: {$importados} productos registrados, {$omitidosDuplicados} omitidos por duplicidad y {$errores} errores detectados.");
+            'productos_importados'      => $productosCreados,
+            'productos_actualizados'    => $productosActualizados,
+            'sucursal_id'               => $targetSucursalId
+        ], "Importación finalizada: {$importados} productos nuevos registrados, {$actualizados} actualizados, {$omitidosDuplicados} omitidos por duplicidad y {$errores} errores detectados.");
     }
 
     /**
      * GET /api/productos/template-excel
-     * Retorna la plantilla oficial con estructura y ejemplos
+     * Retorna la plantilla oficial Excel (.xlsx) o estructura JSON
      */
     public function templateExcel(): void {
+        $format = strtolower(trim((string)($_GET['format'] ?? '')));
+        if ($format === 'xlsx' || isset($_GET['download'])) {
+            $service = new \App\Services\ProductExcelTemplateService();
+            $binary = $service->getBinaryContent();
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment; filename="Plantilla_Oficial_Importacion_Productos_Mass.xlsx"');
+            header('Content-Length: ' . strlen($binary));
+            header('Cache-Control: max-age=0, must-revalidate');
+            echo $binary;
+            exit;
+        }
+
         $headers = [
-            'codigo_sku',
-            'codigo_barras',
-            'nombre',
-            'descripcion',
-            'categoria',
-            'precio_venta',
-            'costo_base',
-            'stock_inicial',
-            'unidad_medida',
-            'es_perecedero',
-            'imagen_url'
+            'FOTO',
+            'SKU / BARRAS',
+            'NOMBRE DEL PRODUCTO',
+            'CATEGORÍA',
+            'PRECIO DE VENTA',
+            'COSTO BASE',
+            'STOCK ACTUAL',
+            'TIPO'
         ];
 
         $sampleRows = [
             [
-                'codigo_sku'    => 'SKU-ARR-010',
-                'codigo_barras' => '7750123450011',
-                'nombre'        => 'Arroz Extra Costeño 1kg',
-                'descripcion'   => 'Arroz seleccionado de grano largo y rendidor.',
-                'categoria'     => 'Abarrotes y Despensa',
-                'precio_venta'  => 4.80,
-                'costo_base'    => 3.70,
-                'stock_inicial' => 80,
-                'unidad_medida' => 'BOLSA',
-                'es_perecedero' => 0,
-                'imagen_url'    => 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400'
+                'FOTO'                => 'imagen_producto.jpg',
+                'SKU / BARRAS'        => 'SKU-ACE-002',
+                'NOMBRE DEL PRODUCTO' => 'Aceite Vegetal Primor Clásico 900 ml',
+                'CATEGORÍA'           => 'Abarrotes y Despensa',
+                'PRECIO DE VENTA'     => 8.90,
+                'COSTO BASE'          => 6.20,
+                'STOCK ACTUAL'        => 54,
+                'TIPO'                => 'No Perecedero'
             ],
             [
-                'codigo_sku'    => 'SKU-BEB-011',
-                'codigo_barras' => '7750123450022',
-                'nombre'        => 'Agua Mineral San Luis 625ml',
-                'descripcion'   => 'Agua de mesa sin gas purificada.',
-                'categoria'     => 'Bebidas y Licores',
-                'precio_venta'  => 2.00,
-                'costo_base'    => 1.30,
-                'stock_inicial' => 120,
-                'unidad_medida' => 'BOTELLA',
-                'es_perecedero' => 0,
-                'imagen_url'    => 'https://images.unsplash.com/photo-1559839914-ba2ac55d683a?w=400'
+                'FOTO'                => 'imagen_producto.jpg',
+                'SKU / BARRAS'        => 'SKU-ARR-001',
+                'NOMBRE DEL PRODUCTO' => 'Arroz Costeño Extra 1 kg',
+                'CATEGORÍA'           => 'Abarrotes y Despensa',
+                'PRECIO DE VENTA'     => 4.50,
+                'COSTO BASE'          => 3.50,
+                'STOCK ACTUAL'        => 90,
+                'TIPO'                => 'No Perecedero'
             ],
             [
-                'codigo_sku'    => 'SKU-LAC-012',
-                'codigo_barras' => '7750123450033',
-                'nombre'        => 'Leche Evaporada Gloria Azul 400g',
-                'descripcion'   => 'Leche entera enriquecida con vitaminas A y D.',
-                'categoria'     => 'Lácteos y Huevos',
-                'precio_venta'  => 4.20,
-                'costo_base'    => 3.20,
-                'stock_inicial' => 100,
-                'unidad_medida' => 'LATA',
-                'es_perecedero' => 1,
-                'imagen_url'    => 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400'
+                'FOTO'                => 'imagen_producto.jpg',
+                'SKU / BARRAS'        => 'SKU-MASS-016',
+                'NOMBRE DEL PRODUCTO' => 'Arroz Extra Grano Largo Mass Bolsa 5 kg',
+                'CATEGORÍA'           => 'Abarrotes y Despensa',
+                'PRECIO DE VENTA'     => 22.90,
+                'COSTO BASE'          => 18.20,
+                'STOCK ACTUAL'        => 35,
+                'TIPO'                => 'No Perecedero'
             ]
         ];
 
         Response::success([
-            'headers'    => $headers,
-            'categorias' => [
+            'headers'      => $headers,
+            'categorias'   => [
                 '1' => 'Abarrotes y Despensa',
                 '2' => 'Lácteos y Huevos',
                 '3' => 'Bebidas y Licores',
                 '4' => 'Limpieza y Cuidado',
                 '5' => 'Frutas y Verduras'
             ],
-            'samples'    => $sampleRows
+            'samples'      => $sampleRows,
+            'download_url' => '/tiendasmass/backend/public/index.php/api/productos/template-excel?format=xlsx'
         ]);
     }
 }

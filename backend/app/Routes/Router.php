@@ -103,6 +103,10 @@ class Router {
             $path = substr($path, strlen($scriptName));
         }
 
+        if (strpos($path, '/index.php') === 0) {
+            $path = substr($path, strlen('/index.php'));
+        }
+
         $path = '/' . trim($path, '/');
         if ($path === '//') {
             $path = '/';

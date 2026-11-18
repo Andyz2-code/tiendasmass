@@ -178,6 +178,24 @@ class ProductoRepository {
         return $stmt->execute($params);
     }
 
+    public function getBySku(string $sku): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM productos WHERE codigo_sku = :sku LIMIT 1");
+        $stmt->execute([':sku' => trim($sku)]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
+    public function getByBarcode(string $barcode): ?array {
+        $trimmed = trim($barcode);
+        if ($trimmed === '') {
+            return null;
+        }
+        $stmt = $this->db->prepare("SELECT * FROM productos WHERE codigo_barras = :barras LIMIT 1");
+        $stmt->execute([':barras' => $trimmed]);
+        $row = $stmt->fetch();
+        return $row ?: null;
+    }
+
     public function existsBySku(string $sku, ?int $excludeId = null): bool {
         $sql = "SELECT COUNT(*) FROM productos WHERE codigo_sku = :sku";
         $params = [':sku' => trim($sku)];
