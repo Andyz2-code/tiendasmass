@@ -507,14 +507,14 @@ INSERT INTO `categorias` (`id`, `nombre`, `descripcion`, `icono`, `estado`) VALU
 
 -- 7. Productos de Canasta Básica (Catálogo Global)
 INSERT INTO `productos` (`id`, `categoria_id`, `codigo_sku`, `codigo_barras`, `nombre`, `descripcion`, `unidad_medida`, `precio_venta`, `costo_base`, `es_perecedero`, `imagen_url`, `estado`) VALUES
-(1, 1, 'SKU-ARR-001', '7750885001234', 'Arroz Costeño Extra 1 kg', 'Arroz blanco extra seleccionado grano largo, ideal para la canasta familiar.', 'BOLSA', 4.80, 3.70, 0, 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400', 1),
-(2, 1, 'SKU-ACE-002', '7750885005678', 'Aceite Vegetal Primor Clásico 900 ml', 'Aceite comestible 100% puro de soya con antioxidantes naturales.', 'BOTELLA', 8.50, 6.60, 0, 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400', 1),
-(3, 1, 'SKU-AZU-003', '7750885009012', 'Azúcar Rubia Dulfina 1 kg', 'Azúcar rubia doméstica de caña natural de alta pureza.', 'BOLSA', 3.90, 2.90, 0, 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?w=400', 1),
-(4, 1, 'SKU-FID-004', '7750885003456', 'Fideos Spaghetti Don Vittorio 500 g', 'Pasta elaborada con trigo durum seleccionado de cocción al dente.', 'PAQUETE', 3.20, 2.30, 0, 'https://images.unsplash.com/photo-1612927601601-6638404737ce?w=400', 1),
-(5, 2, 'SKU-LEC-005', '7751271000120', 'Leche Evaporada Gloria Azul 400 g', 'Leche entera evaporada enriquecida con vitaminas A y D.', 'LATA', 4.30, 3.40, 1, 'https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400', 1),
-(6, 2, 'SKU-YOG-006', '7751271000789', 'Yogur Gloria Fresa Parcialmente Descremado 1 L', 'Yogur bebible con probióticos y pulpa de fresa.', 'BOTELLA', 6.80, 5.10, 1, 'https://images.unsplash.com/photo-1488477181946-6428a0291777?w=400', 1),
-(7, 3, 'SKU-GAS-007', '7750123000456', 'Gaseosa Inka Kola Sin Calorías 1.5 L', 'La bebida de sabor nacional baja en calorías y con gas refrescante.', 'BOTELLA', 6.50, 4.80, 0, 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=400', 1),
-(8, 4, 'SKU-DET-008', '7750234000890', 'Detergente en Polvo Bolívar Floral 800 g', 'Detergente con partículas de fragancia floral y poder removedor.', 'BOLSA', 7.90, 5.80, 0, 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=400', 1);
+(1, 1, 'SKU-ARR-001', '7750885001234', 'Arroz Costeño Extra 1 kg', 'Arroz blanco extra seleccionado grano largo, ideal para la canasta familiar.', 'BOLSA', 4.80, 3.70, 0, 'assets/uploads/products/arroz_costeno_1kg.jpg', 1),
+(2, 1, 'SKU-ACE-002', '7750885005678', 'Aceite Vegetal Primor Clásico 900 ml', 'Aceite comestible 100% puro de soya con antioxidantes naturales.', 'BOTELLA', 8.50, 6.60, 0, 'assets/uploads/products/aceite_primor_900ml.jpg', 1),
+(3, 1, 'SKU-AZU-003', '7750885009012', 'Azúcar Rubia Dulfina 1 kg', 'Azúcar rubia doméstica de caña natural de alta pureza.', 'BOLSA', 3.90, 2.90, 0, 'assets/uploads/products/azucar_dulfina_1kg.jpg', 1),
+(4, 1, 'SKU-FID-004', '7750885003456', 'Fideos Spaghetti Don Vittorio 500 g', 'Pasta elaborada con trigo durum seleccionado de cocción al dente.', 'PAQUETE', 3.20, 2.30, 0, 'assets/uploads/products/fideos_don_vittorio_500g.jpg', 1),
+(5, 2, 'SKU-LEC-005', '7751271000120', 'Leche Evaporada Gloria Azul 400 g', 'Leche entera evaporada enriquecida con vitaminas A y D.', 'LATA', 4.30, 3.40, 1, 'assets/uploads/products/leche_gloria_azul_400g.jpg', 1),
+(6, 2, 'SKU-YOG-006', '7751271000789', 'Yogur Gloria Fresa Parcialmente Descremado 1 L', 'Yogur bebible con probióticos y pulpa de fresa.', 'BOTELLA', 6.80, 5.10, 1, 'assets/uploads/products/yogur_gloria_fresa_1l.jpg', 1),
+(7, 3, 'SKU-GAS-007', '7750123000456', 'Gaseosa Inka Kola Sin Calorías 1.5 L', 'La bebida de sabor nacional baja en calorías y con gas refrescante.', 'BOTELLA', 6.50, 4.80, 0, 'assets/uploads/products/inka_kola_sin_azucar_1500ml.jpg', 1),
+(8, 4, 'SKU-DET-008', '7750234000890', 'Detergente en Polvo Bolívar Floral 800 g', 'Detergente con partículas de fragancia floral y poder removedor.', 'BOLSA', 7.90, 5.80, 0, 'assets/uploads/products/detergente_bolivar_floral_800g.jpg', 1);
 
 -- 8. Inventarios por Sucursal (Stocks independientes y clasificaciones ABC)
 -- Sucursal 1 (Huancayo Centro)
