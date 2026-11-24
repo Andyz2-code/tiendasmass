@@ -33,11 +33,11 @@ return [
         'timezone' => getenv('APP_TIMEZONE') ?: 'America/Lima',
     ],
     'db' => [
-        'host' => getenv('DB_HOST') ?: '127.0.0.1',
-        'port' => getenv('DB_PORT') ?: '3306',
-        'database' => getenv('DB_DATABASE') ?: 'tiendas_mass_db',
-        'username' => getenv('DB_USERNAME') ?: 'root',
-        'password' => getenv('DB_PASSWORD') ?: '',
+        'host' => getenv('DB_HOST') ?: (getenv('MYSQLHOST') ?: '127.0.0.1'),
+        'port' => getenv('DB_PORT') ?: (getenv('MYSQLPORT') ?: '3306'),
+        'database' => getenv('DB_DATABASE') ?: (getenv('MYSQLDATABASE') ?: 'tiendas_mass_db'),
+        'username' => getenv('DB_USERNAME') ?: (getenv('MYSQLUSER') ?: 'root'),
+        'password' => getenv('DB_PASSWORD') !== false ? getenv('DB_PASSWORD') : (getenv('MYSQLPASSWORD') ?: ''),
         'charset' => 'utf8mb4',
     ],
     'jwt' => [

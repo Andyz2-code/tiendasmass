@@ -3,7 +3,6 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /tiendasmass/
 
     # 1. Rutas de API REST hacia el Front Controller de PHP
     RewriteRule ^api/(.*)$ backend/public/index.php [QSA,L]
@@ -20,6 +19,7 @@ Options -Indexes
     RewriteRule ^pedidos/?$ frontend/src/interfaz-cliente/pedidos.html [L]
 
     # 4. Mapeo de recursos estáticos si se piden desde la raíz
-    RewriteCond %{DOCUMENT_ROOT}/tiendasmass/frontend/$1 -f
-    RewriteRule ^(.*)$ frontend/$1 [L]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.+)$ frontend/$1 [L]
 </IfModule>
