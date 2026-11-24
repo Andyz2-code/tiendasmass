@@ -96,6 +96,21 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->patchMapping('/banners/{id}/toggle', 'BannerController@toggle', ['jwt', 'role:Administrador,Supervisor']);
     $api->deleteMapping('/banners/{id}', 'BannerController@destroy', ['jwt', 'role:Administrador,Supervisor']);
 
+    // 10. Módulos ERP ARKAN (Proveedores, Compras, Traslados, Valorizado, Caja y Configuraciones)
+    $api->getMapping('/proveedores', 'ArkanErpController@listProveedores', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/proveedores', 'ArkanErpController@storeProveedor', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/proveedores/lookup/{numero}', 'ArkanErpController@lookupRuc', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/compras', 'ArkanErpController@listCompras', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/compras', 'ArkanErpController@storeCompra', ['jwt', 'role:Administrador,Supervisor']);
+    $api->patchMapping('/compras/{id}/pagar', 'ArkanErpController@pagarCompra', ['jwt', 'role:Administrador']);
+    $api->getMapping('/traslados', 'ArkanErpController@listTraslados', ['jwt', 'role:Administrador,Supervisor']);
+    $api->postMapping('/traslados', 'ArkanErpController@storeTraslado', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/inventarios/valorizado', 'ArkanErpController@inventarioValorizado', ['jwt', 'role:Administrador,Supervisor']);
+    $api->getMapping('/caja/movimientos', 'ArkanErpController@listCaja', ['jwt', 'role:Administrador']);
+    $api->postMapping('/caja/movimientos', 'ArkanErpController@storeCaja', ['jwt', 'role:Administrador']);
+    $api->getMapping('/configuraciones', 'ArkanErpController@getConfiguraciones', ['jwt', 'role:Administrador,Supervisor']);
+    $api->putMapping('/configuraciones', 'ArkanErpController@updateConfiguraciones', ['jwt', 'role:Administrador']);
+
     // 10. Mapeo de Chatbot Inteligente de Recomendaciones IA Massi (Google Gemini)
     $api->postMapping('/chat/recommendations', 'ChatbotController@getRecommendations');
     $api->postMapping('/chatbot/recommendations', 'ChatbotController@getRecommendations');

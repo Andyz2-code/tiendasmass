@@ -18,6 +18,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script type="text/babel" src="js/arkan-erp-views.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -234,7 +235,14 @@
                 { id: 'delivery', label: 'Rastreo Satelital GPS', icon: '🛵' },
                 { id: 'banners', label: 'Banners & Promociones', icon: '🖼️' },
                 { id: 'reportes', label: 'Módulo de Desmedro / Merma', icon: '📉', badge: 'NIC 2' },
-                ...(isAdmin ? [{ id: 'usuarios', label: 'Usuarios & Supervisores', icon: '👥', badge: 'Admin' }] : [])
+                { id: 'compras', label: 'Compras & Proveedores', icon: '🛍️', badge: 'ARKAN' },
+                { id: 'traslados', label: 'Traslados entre Tiendas', icon: '🚚' },
+                { id: 'valorizado', label: 'Inv. Valorizado & Etiquetas', icon: '🏷️' },
+                ...(isAdmin ? [
+                  { id: 'caja', label: 'Caja Operativa & Gastos', icon: '💵', badge: 'Admin' },
+                  { id: 'configuracion', label: 'Configuración Operativa', icon: '⚙️', badge: 'Admin' },
+                  { id: 'usuarios', label: 'Usuarios & Supervisores', icon: '👥', badge: 'Admin' }
+                ] : [])
               ].map(item => (
                 <button
                   key={item.id}
@@ -353,6 +361,11 @@
               {view === 'reportes_generales' && <AdminReportesGeneralesView branch={selectedBranch} user={user} />}
               {view === 'banners' && <AdminBannersView branch={selectedBranch} user={user} sucursales={sucursales} />}
               {view === 'reportes' && <AdminReportesView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'compras' && window.ArkanComprasView && <window.ArkanComprasView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'traslados' && window.ArkanTrasladosView && <window.ArkanTrasladosView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'valorizado' && window.ArkanValorizadoEtiquetasView && <window.ArkanValorizadoEtiquetasView branch={selectedBranch} />}
+              {view === 'caja' && isAdmin && window.ArkanCajaView && <window.ArkanCajaView branch={selectedBranch} />}
+              {view === 'configuracion' && isAdmin && window.ArkanConfiguracionView && <window.ArkanConfiguracionView />}
               {view === 'usuarios' && <AdminUsuariosView user={user} sucursales={sucursales} />}
             </main>
             <AccessibilityWidget />

@@ -21,6 +21,7 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script type="text/babel" src="js/arkan-erp-views.js"></script>
   <script>
     tailwind.config = {
       theme: {
@@ -247,7 +248,14 @@
                 { id: 'delivery', label: 'Rastreo Satelital GPS', icon: '🛵' },
                 { id: 'banners', label: 'Banners & Promociones', icon: '🖼️' },
                 { id: 'reportes', label: 'Módulo de Desmedro / Merma', icon: '📉', badge: 'NIC 2' },
-                ...(isAdmin ? [{ id: 'usuarios', label: 'Usuarios & Supervisores', icon: '👥', badge: 'Admin' }] : [])
+                { id: 'compras', label: 'Compras & Proveedores', icon: '🛍️', badge: 'ARKAN' },
+                { id: 'traslados', label: 'Traslados entre Tiendas', icon: '🚚' },
+                { id: 'valorizado', label: 'Inv. Valorizado & Etiquetas', icon: '🏷️' },
+                ...(isAdmin ? [
+                  { id: 'caja', label: 'Caja Operativa & Gastos', icon: '💵', badge: 'Admin' },
+                  { id: 'configuracion', label: 'Configuración Operativa', icon: '⚙️', badge: 'Admin' },
+                  { id: 'usuarios', label: 'Usuarios & Supervisores', icon: '👥', badge: 'Admin' }
+                ] : [])
               ].map(item => (
                 <button
                   key={item.id}
@@ -366,6 +374,11 @@
               {view === 'reportes_generales' && <AdminReportesGeneralesView branch={selectedBranch} user={user} />}
               {view === 'banners' && <AdminBannersView branch={selectedBranch} user={user} sucursales={sucursales} />}
               {view === 'reportes' && <AdminReportesView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'compras' && window.ArkanComprasView && <window.ArkanComprasView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'traslados' && window.ArkanTrasladosView && <window.ArkanTrasladosView branch={selectedBranch} user={user} sucursales={sucursales} />}
+              {view === 'valorizado' && window.ArkanValorizadoEtiquetasView && <window.ArkanValorizadoEtiquetasView branch={selectedBranch} />}
+              {view === 'caja' && isAdmin && window.ArkanCajaView && <window.ArkanCajaView branch={selectedBranch} />}
+              {view === 'configuracion' && isAdmin && window.ArkanConfiguracionView && <window.ArkanConfiguracionView />}
               {view === 'usuarios' && <AdminUsuariosView user={user} sucursales={sucursales} />}
             </main>
             <AccessibilityWidget />
@@ -607,6 +620,22 @@
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-2 p-1 bg-stone-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => fillCreds('admin@tiendasmass.pe')}
+                  className={`py-2 rounded-lg font-extrabold transition ${email.includes('admin') ? 'bg-stone-900 text-amber-300 shadow' : 'text-stone-600'}`}
+                >
+                  👑 Administrador
+                </button>
+                <button
+                  type="button"
+                  onClick={() => fillCreds('supervisor.centro@tiendasmass.pe')}
+                  className={`py-2 rounded-lg font-extrabold transition ${email.includes('supervisor') ? 'bg-stone-900 text-amber-300 shadow' : 'text-stone-600'}`}
+                >
+                  🧑‍💼 Supervisor
+                </button>
+              </div>
               <div>
                 <label className="block font-bold text-stone-700 mb-1">Correo Institucional:</label>
                 <input
