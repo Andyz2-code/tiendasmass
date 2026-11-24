@@ -514,7 +514,23 @@ INSERT INTO `productos` (`id`, `categoria_id`, `codigo_sku`, `codigo_barras`, `n
 (5, 2, 'SKU-LEC-005', '7751271000120', 'Leche Evaporada Gloria Azul 400 g', 'Leche entera evaporada enriquecida con vitaminas A y D.', 'LATA', 4.30, 3.40, 1, 'assets/uploads/products/leche_gloria_azul_400g.jpg', 1),
 (6, 2, 'SKU-YOG-006', '7751271000789', 'Yogur Gloria Fresa Parcialmente Descremado 1 L', 'Yogur bebible con probióticos y pulpa de fresa.', 'BOTELLA', 6.80, 5.10, 1, 'assets/uploads/products/yogur_gloria_fresa_1l.jpg', 1),
 (7, 3, 'SKU-GAS-007', '7750123000456', 'Gaseosa Inka Kola Sin Calorías 1.5 L', 'La bebida de sabor nacional baja en calorías y con gas refrescante.', 'BOTELLA', 6.50, 4.80, 0, 'assets/uploads/products/inka_kola_sin_azucar_1500ml.jpg', 1),
-(8, 4, 'SKU-DET-008', '7750234000890', 'Detergente en Polvo Bolívar Floral 800 g', 'Detergente con partículas de fragancia floral y poder removedor.', 'BOLSA', 7.90, 5.80, 0, 'assets/uploads/products/detergente_bolivar_floral_800g.jpg', 1);
+(8, 4, 'SKU-DET-008', '7750234000890', 'Detergente en Polvo Bolívar Floral 800 g', 'Detergente con partículas de fragancia floral y poder removedor.', 'BOLSA', 7.90, 5.80, 0, 'assets/uploads/products/detergente_bolivar_floral_800g.jpg', 1),
+(9,  1, 'SKU-ATU-009', '7750885009101', 'Filete de Atún Florida en Aceite 170 g', 'Sólido de atún seleccionado en aceite vegetal, fuente natural de Omega 3.', 'LATA', 5.90, 4.40, 0, 'assets/uploads/products/atun_florida_170g.jpg', 1),
+(10, 1, 'SKU-AVN-010', '7750885009102', 'Avena Quaker Tradicional 200 g', 'Hojuelas de avena 100% integral ideales para desayunos nutritivos.', 'BOLSA', 3.50, 2.50, 0, 'assets/uploads/products/avena_quaker_500g.jpg', 1),
+(11, 1, 'SKU-CAF-011', '7750885009103', 'Café Instantáneo Nescafé Tradición 50 g', 'Café soluble 100% puro de tueste medio y aroma intenso.', 'FRASCO', 9.50, 7.10, 0, 'assets/uploads/products/cafe_nescafe_tradicion.jpg', 1),
+(12, 1, 'SKU-GAL-012', '7750885009104', 'Galletas Soda Field Paquete 6 und', 'Clásicas galletas saladas crocantes ideales para acompañar tus comidas.', 'PAQUETE', 4.50, 3.30, 0, 'assets/uploads/products/galletas_soda_field.jpg', 1),
+(13, 1, 'SKU-SAL-013', '7750885009105', 'Sal Marina Emsal Cocina 1 kg', 'Sal yodada de mesa y cocina refinada de alta pureza.', 'BOLSA', 2.20, 1.50, 0, 'assets/uploads/products/sal_emsal_1kg.jpg', 1),
+(14, 2, 'SKU-MAN-014', '7751271009106', 'Mantequilla Gloria con Sal 180 g', 'Mantequilla fresca pasteurizada con el punto exacto de sal.', 'PAQUETE', 8.90, 6.70, 1, 'assets/uploads/products/mantequilla_gloria_200g.jpg', 1),
+(15, 2, 'SKU-QUE-015', '7751271009107', 'Queso Edam Laive Tajado 180 g', 'Queso Edam semiduro en láminas listo para sándwiches y loncheras.', 'PAQUETE', 10.50, 7.80, 1, 'assets/uploads/products/queso_edam_laive.jpg', 1),
+(16, 2, 'SKU-HUE-016', '7751271009108', 'Huevos Pardos La Calera x15 und', 'Huevos frescos seleccionados de granja en bandeja protectora de 15 unidades.', 'BANDEJA', 9.80, 7.40, 1, 'assets/uploads/products/huevos_la_calera_15.jpg', 1),
+(17, 2, 'SKU-LCH-017', '7751271009109', 'Leche Chocolatada Gloria UHT 800 ml', 'Leche sabor a chocolate fortificada con vitaminas y minerales.', 'BOLSA', 5.20, 3.90, 1, 'assets/uploads/products/leche_chocolatada_gloria_1l.jpg', 1),
+(18, 3, 'SKU-AGU-018', '7750123009110', 'Agua Mineral San Mateo Sin Gas 2.5 L', 'Agua mineral natural de manantial andino sin gas.', 'BOTELLA', 3.50, 2.40, 0, 'assets/uploads/products/agua_san_mateo_25l.jpg', 1),
+(19, 3, 'SKU-COC-019', '7750123009111', 'Gaseosa Coca-Cola Original 1.5 L', 'Bebida gasificada sabor original ideal para compartir en familia.', 'BOTELLA', 6.80, 5.00, 0, 'assets/uploads/products/coca_cola_15l.jpg', 1),
+(20, 3, 'SKU-FRU-020', '7750123009112', 'Néctar Frugos del Valle Durazno 1 L', 'Néctar de durazno refrescante con pulpa de fruta.', 'BOTELLA', 4.90, 3.60, 0, 'assets/uploads/products/frugos_durazno_1l.jpg', 1),
+(21, 3, 'SKU-SPO-021', '7750123009113', 'Bebida Rehidratante Sporade Tropical 500 ml', 'Bebida isotónica con electrolitos sabor tropical.', 'BOTELLA', 2.80, 1.95, 0, 'assets/uploads/products/sporade_tropical_500ml.jpg', 1),
+(22, 4, 'SKU-LEJ-022', '7750234009114', 'Lejía Clorox Tradicional 1 L', 'Desinfectante y blanqueador multiusos que elimina el 99.9% de bacterias.', 'BOTELLA', 4.70, 3.40, 0, 'assets/uploads/products/lejia_clorox_1l.jpg', 1),
+(23, 4, 'SKU-PAP-023', '7750234009115', 'Papel Higiénico Elite Doble Hoja x4 und', 'Papel higiénico suave y resistente de doble hoja.', 'PAQUETE', 6.90, 5.10, 0, 'assets/uploads/products/papel_elite_4un.jpg', 1),
+(24, 4, 'SKU-LAV-024', '7750234009116', 'Lavavajilla Líquido Sapolio Limón 1.25 L', 'Lavavajilla líquido concentrado arrancagrasa con aroma a limón.', 'BOTELLA', 8.50, 6.20, 0, 'assets/uploads/products/lavavajilla_sapolio_limon.jpg', 1);
 
 -- 8. Inventarios por Sucursal (Stocks independientes y clasificaciones ABC)
 -- Sucursal 1 (Huancayo Centro)
@@ -526,7 +542,23 @@ INSERT INTO `inventarios` (`sucursal_id`, `producto_id`, `stock_actual`, `stock_
 (1, 5, 110, 25, 250, 38, 'A', 9.0, 2, 20),
 (1, 6, 35,  10, 100, 20, 'B', 4.0, 2, 10),
 (1, 7, 50,  15, 150, 25, 'C', 3.5, 3, 10),
-(1, 8, 45,  10, 120, 22, 'C', 3.0, 4, 10);
+(1, 8, 45,  10, 120, 22, 'C', 3.0, 4, 10),
+(1, 9,  85,  15, 200, 30, 'A', 6.0, 3, 10),
+(1, 10, 90,  15, 200, 28, 'B', 5.0, 3, 10),
+(1, 11, 55,  10, 150, 22, 'B', 3.5, 4, 8),
+(1, 12, 110, 20, 250, 35, 'A', 7.0, 3, 12),
+(1, 13, 130, 25, 300, 40, 'C', 6.0, 4, 15),
+(1, 14, 48,  10, 120, 20, 'B', 4.0, 2, 10),
+(1, 15, 42,  10, 100, 18, 'B', 3.5, 2, 8),
+(1, 16, 60,  15, 150, 25, 'A', 6.5, 2, 12),
+(1, 17, 50,  10, 120, 20, 'B', 4.0, 2, 10),
+(1, 18, 95,  20, 220, 32, 'A', 7.0, 3, 12),
+(1, 19, 80,  15, 200, 28, 'A', 6.5, 3, 10),
+(1, 20, 65,  15, 160, 24, 'B', 4.5, 3, 10),
+(1, 21, 100, 20, 220, 32, 'B', 6.0, 3, 12),
+(1, 22, 70,  15, 180, 25, 'B', 4.5, 4, 10),
+(1, 23, 88,  20, 200, 30, 'A', 6.0, 3, 12),
+(1, 24, 52,  12, 140, 22, 'C', 3.5, 4, 8);
 
 -- Sucursal 2 (San Carlos)
 INSERT INTO `inventarios` (`sucursal_id`, `producto_id`, `stock_actual`, `stock_minimo`, `stock_maximo`, `punto_reorden`, `clasificacion_abc`, `demanda_diaria_promedio`, `lead_time_dias`, `stock_seguridad`) VALUES
@@ -537,7 +569,23 @@ INSERT INTO `inventarios` (`sucursal_id`, `producto_id`, `stock_actual`, `stock_
 (2, 5, 85,  20, 200, 32, 'A', 7.5, 2, 15),
 (2, 6, 25,  10,  80, 18, 'B', 3.0, 2, 10),
 (2, 7, 40,  10, 100, 20, 'C', 2.5, 3, 10),
-(2, 8, 30,  10, 100, 20, 'C', 2.0, 4, 10);
+(2, 8, 30,  10, 100, 20, 'C', 2.0, 4, 10),
+(2, 9,  65,  15, 180, 28, 'A', 5.0, 3, 10),
+(2, 10, 70,  15, 180, 25, 'B', 4.5, 3, 10),
+(2, 11, 40,  10, 120, 18, 'B', 3.0, 4, 8),
+(2, 12, 85,  20, 200, 30, 'A', 6.0, 3, 12),
+(2, 13, 100, 20, 250, 35, 'C', 5.0, 4, 15),
+(2, 14, 36,  10, 100, 18, 'B', 3.5, 2, 8),
+(2, 15, 32,  10, 90,  16, 'B', 3.0, 2, 8),
+(2, 16, 48,  12, 120, 22, 'A', 5.5, 2, 10),
+(2, 17, 40,  10, 100, 18, 'B', 3.5, 2, 8),
+(2, 18, 75,  15, 180, 28, 'A', 6.0, 3, 10),
+(2, 19, 60,  15, 160, 24, 'A', 5.5, 3, 10),
+(2, 20, 50,  12, 140, 20, 'B', 4.0, 3, 8),
+(2, 21, 80,  15, 180, 28, 'B', 5.0, 3, 10),
+(2, 22, 55,  12, 150, 22, 'B', 4.0, 4, 8),
+(2, 23, 70,  15, 160, 25, 'A', 5.0, 3, 10),
+(2, 24, 42,  10, 120, 18, 'C', 3.0, 4, 8);
 
 -- 9. Lotes Estratificados para Demostración PEPS y Consumo Responsable (NIC 2)
 -- En Sucursal 1:
@@ -574,7 +622,39 @@ INSERT INTO `lotes` (`id`, `sucursal_id`, `producto_id`, `codigo_lote`, `fecha_i
 (18, 2, 5, 'LOT-LEC-SC01', '2026-10-15', DATE_ADD(CURDATE(), INTERVAL 60 DAY), 90, 85, 3.40, 'RACK-FRIO', 'DISPONIBLE'),
 (19, 2, 6, 'LOT-YOG-SC01', '2026-10-25', DATE_ADD(CURDATE(), INTERVAL 18 DAY), 30, 25, 5.10, 'RACK-FRIO', 'DISPONIBLE'),
 (20, 2, 7, 'LOT-GAS-SC01', '2026-10-15', '2027-04-15', 50, 40, 4.80, 'RACK-05', 'DISPONIBLE'),
-(21, 2, 8, 'LOT-DET-SC01', '2026-10-10', '2028-10-10', 40, 30, 5.80, 'RACK-06', 'DISPONIBLE');
+(21, 2, 8, 'LOT-DET-SC01', '2026-10-10', '2028-10-10', 40, 30, 5.80, 'RACK-06', 'DISPONIBLE'),
+(22, 1, 9,  'LOT-ATU-2601', '2026-10-01', '2028-06-30', 85,  85,  4.40, 'ESTANTE-A4', 'DISPONIBLE'),
+(23, 1, 10, 'LOT-AVN-2601', '2026-10-05', '2027-09-15', 90,  90,  2.50, 'ESTANTE-A5', 'DISPONIBLE'),
+(24, 1, 11, 'LOT-CAF-2601', '2026-10-05', '2028-03-20', 55,  55,  7.10, 'ESTANTE-A6', 'DISPONIBLE'),
+(25, 1, 12, 'LOT-GAL-2601', '2026-10-10', '2027-05-30', 110, 110, 3.30, 'ESTANTE-C3', 'DISPONIBLE'),
+(26, 1, 13, 'LOT-SAL-2601', '2026-09-20', '2029-09-20', 130, 130, 1.50, 'ESTANTE-A7', 'DISPONIBLE'),
+(27, 1, 14, 'LOT-MAN-2601', '2026-11-01', DATE_ADD(CURDATE(), INTERVAL 45 DAY), 48, 48, 6.70, 'CAMARA-FRIO-1', 'DISPONIBLE'),
+(28, 1, 15, 'LOT-QUE-2601', '2026-11-05', DATE_ADD(CURDATE(), INTERVAL 25 DAY), 42, 42, 7.80, 'CAMARA-FRIO-2', 'DISPONIBLE'),
+(29, 1, 16, 'LOT-HUE-2601', '2026-11-12', DATE_ADD(CURDATE(), INTERVAL 14 DAY), 60, 60, 7.40, 'CAMARA-FRIO-3', 'DISPONIBLE'),
+(30, 1, 17, 'LOT-LCH-2601', '2026-11-01', DATE_ADD(CURDATE(), INTERVAL 60 DAY), 50, 50, 3.90, 'CAMARA-FRIO-1', 'DISPONIBLE'),
+(31, 1, 18, 'LOT-AGU-2601', '2026-10-15', '2027-10-15', 95,  95,  2.40, 'ESTANTE-D2', 'DISPONIBLE'),
+(32, 1, 19, 'LOT-COC-2601', '2026-10-18', '2027-06-18', 80,  80,  5.00, 'ESTANTE-D3', 'DISPONIBLE'),
+(33, 1, 20, 'LOT-FRU-2601', '2026-10-20', '2027-04-20', 65,  65,  3.60, 'ESTANTE-D4', 'DISPONIBLE'),
+(34, 1, 21, 'LOT-SPO-2601', '2026-10-20', '2027-05-20', 100, 100, 1.95, 'ESTANTE-D5', 'DISPONIBLE'),
+(35, 1, 22, 'LOT-LEJ-2601', '2026-10-01', '2028-10-01', 70,  70,  3.40, 'ESTANTE-E2', 'DISPONIBLE'),
+(36, 1, 23, 'LOT-PAP-2601', '2026-10-01', '2029-10-01', 88,  88,  5.10, 'ESTANTE-E3', 'DISPONIBLE'),
+(37, 1, 24, 'LOT-LAV-2601', '2026-10-01', '2028-10-01', 52,  52,  6.20, 'ESTANTE-E4', 'DISPONIBLE'),
+(38, 2, 9,  'LOT-ATU-SC01', '2026-10-05', '2028-06-30', 65,  65,  4.40, 'RACK-07', 'DISPONIBLE'),
+(39, 2, 10, 'LOT-AVN-SC01', '2026-10-05', '2027-09-15', 70,  70,  2.50, 'RACK-08', 'DISPONIBLE'),
+(40, 2, 11, 'LOT-CAF-SC01', '2026-10-05', '2028-03-20', 40,  40,  7.10, 'RACK-09', 'DISPONIBLE'),
+(41, 2, 12, 'LOT-GAL-SC01', '2026-10-10', '2027-05-30', 85,  85,  3.30, 'RACK-10', 'DISPONIBLE'),
+(42, 2, 13, 'LOT-SAL-SC01', '2026-09-20', '2029-09-20', 100, 100, 1.50, 'RACK-11', 'DISPONIBLE'),
+(43, 2, 14, 'LOT-MAN-SC01', '2026-11-01', DATE_ADD(CURDATE(), INTERVAL 45 DAY), 36, 36, 6.70, 'RACK-FRIO', 'DISPONIBLE'),
+(44, 2, 15, 'LOT-QUE-SC01', '2026-11-05', DATE_ADD(CURDATE(), INTERVAL 25 DAY), 32, 32, 7.80, 'RACK-FRIO', 'DISPONIBLE'),
+(45, 2, 16, 'LOT-HUE-SC01', '2026-11-12', DATE_ADD(CURDATE(), INTERVAL 14 DAY), 48, 48, 7.40, 'RACK-FRIO', 'DISPONIBLE'),
+(46, 2, 17, 'LOT-LCH-SC01', '2026-11-01', DATE_ADD(CURDATE(), INTERVAL 60 DAY), 40, 40, 3.90, 'RACK-FRIO', 'DISPONIBLE'),
+(47, 2, 18, 'LOT-AGU-SC01', '2026-10-15', '2027-10-15', 75,  75,  2.40, 'RACK-12', 'DISPONIBLE'),
+(48, 2, 19, 'LOT-COC-SC01', '2026-10-18', '2027-06-18', 60,  60,  5.00, 'RACK-13', 'DISPONIBLE'),
+(49, 2, 20, 'LOT-FRU-SC01', '2026-10-20', '2027-04-20', 50,  50,  3.60, 'RACK-14', 'DISPONIBLE'),
+(50, 2, 21, 'LOT-SPO-SC01', '2026-10-20', '2027-05-20', 80,  80,  1.95, 'RACK-15', 'DISPONIBLE'),
+(51, 2, 22, 'LOT-LEJ-SC01', '2026-10-01', '2028-10-01', 55,  55,  3.40, 'RACK-16', 'DISPONIBLE'),
+(52, 2, 23, 'LOT-PAP-SC01', '2026-10-01', '2029-10-01', 70,  70,  5.10, 'RACK-17', 'DISPONIBLE'),
+(53, 2, 24, 'LOT-LAV-SC01', '2026-10-01', '2028-10-01', 42,  42,  6.20, 'RACK-18', 'DISPONIBLE');
 
 -- 10. Kardex Inicial
 INSERT INTO `movimientos_inventario` (`sucursal_id`, `producto_id`, `lote_id`, `usuario_id`, `tipo_movimiento`, `documento_referencia`, `cantidad`, `costo_unitario`, `saldo_anterior`, `saldo_nuevo`, `observaciones`) VALUES
