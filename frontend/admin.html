@@ -3045,10 +3045,10 @@
                         </td>
                         <td className="p-3 text-stone-600">{p.sucursal_nombre}</td>
                         <td className="p-3 text-center font-black text-stone-900 text-sm">
-                          {p.unidades_vendidas}
+                          {Number(p.unidades_vendidas || 0).toLocaleString('es-PE')}
                         </td>
                         <td className="p-3 text-right font-black text-mass-red">
-                          S/ {parseFloat(p.total_soles_generado || 0).toFixed(2)}
+                          S/ {parseFloat(p.total_soles_generado || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="p-3 text-center font-bold text-stone-600">
                           {p.operaciones_count} tickets

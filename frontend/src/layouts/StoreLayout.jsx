@@ -49,23 +49,21 @@ export const StoreLayout = () => {
             />
           </NavLink>
 
-          {/* Selector de Sucursal en el Header */}
+          {/* Selector de Sucursal Simplificado en el Header */}
           <div className="hidden md:flex items-center gap-2 bg-white/90 backdrop-blur px-3.5 py-2 rounded-xl border border-stone-200 shadow-sm text-xs">
             <MapPin className="w-4 h-4 text-mass-red shrink-0" />
-            <div className="flex flex-col">
-              <span className="text-[9px] uppercase font-bold text-stone-500">Comprando en:</span>
-              <select
-                value={selectedBranch?.id || ''}
-                onChange={(e) => selectBranch(e.target.value)}
-                className="font-bold text-stone-900 bg-transparent focus:outline-none cursor-pointer"
-              >
-                {sucursales.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.nombre} (Radio {s.radio_cobertura_km} km)
-                  </option>
-                ))}
-              </select>
-            </div>
+            <select
+              value={selectedBranch?.id || ''}
+              onChange={(e) => selectBranch(e.target.value)}
+              className="font-bold text-stone-900 bg-transparent focus:outline-none cursor-pointer pr-1"
+              aria-label="Seleccionar sucursal de Tiendas Mass"
+            >
+              {sucursales.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Botones de Usuario y Carrito */}
@@ -178,14 +176,14 @@ export const StoreLayout = () => {
         </div>
       </header>
 
-      {/* Selector móvil de sucursal */}
+      {/* Selector móvil de sucursal simplificado */}
       <div className="md:hidden bg-stone-100 border-b border-stone-200 px-4 py-2 flex items-center gap-2 text-xs">
         <MapPin className="w-4 h-4 text-mass-red" />
-        <span className="text-stone-500 font-medium">Tienda:</span>
         <select
           value={selectedBranch?.id || ''}
           onChange={(e) => selectBranch(e.target.value)}
-          className="font-bold text-stone-900 bg-transparent flex-1"
+          className="font-bold text-stone-900 bg-transparent flex-1 focus:outline-none cursor-pointer"
+          aria-label="Seleccionar sucursal de Tiendas Mass"
         >
           {sucursales.map((s) => (
             <option key={s.id} value={s.id}>

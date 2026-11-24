@@ -35,6 +35,7 @@ class FifoInventoryService {
                   AND producto_id = :producto_id 
                   AND estado = 'DISPONIBLE' 
                   AND cantidad_disponible > 0
+                  AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURDATE())
                 ORDER BY fecha_ingreso ASC, fecha_vencimiento ASC, id ASC
                 FOR UPDATE"; // Bloqueo de fila para evitar condiciones de carrera
 

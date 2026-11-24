@@ -319,9 +319,9 @@ export const ReportesGeneralesView = () => {
                         <div className="text-[10px] text-stone-400 font-mono">{p.codigo_sku}</div>
                       </td>
                       <td className="py-2.5 px-2 text-stone-500">{p.categoria}</td>
-                      <td className="py-2.5 px-2 text-center font-black text-stone-900">{p.unidades_vendidas}</td>
+                      <td className="py-2.5 px-2 text-center font-black text-stone-900">{Number(p.unidades_vendidas || 0).toLocaleString('es-PE')}</td>
                       <td className="py-2.5 px-2 text-right font-extrabold text-emerald-700">
-                        S/. {Number.parseFloat(p.ingresos_generados).toFixed(2)}
+                        S/. {Number.parseFloat(p.ingresos_generados || 0).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))

@@ -100,9 +100,19 @@ class OrderProcessingService {
 
         $stmt = $this->db->prepare("
             SELECT p.id, p.nombre, p.codigo_sku, p.precio_venta,
-                   COALESCE(i.stock_actual, 0) AS stock_actual
+                   COALESCE(i.stock_actual, 0) AS stock_general,
+                   COALESCE(l.stock_lotes, 0) AS stock_lotes_disponible
             FROM productos p
             LEFT JOIN inventarios i ON i.producto_id = p.id AND i.sucursal_id = :sucursal_id
+            LEFT JOIN (
+                SELECT producto_id, sucursal_id, SUM(cantidad_disponible) AS stock_lotes
+                FROM lotes
+                WHERE sucursal_id = :sucursal_id_lote
+                  AND estado = 'DISPONIBLE'
+                  AND cantidad_disponible > 0
+                  AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURDATE())
+                GROUP BY producto_id, sucursal_id
+            ) l ON l.producto_id = p.id AND l.sucursal_id = :sucursal_id_join
             WHERE p.id = :producto_id
         ");
 
@@ -112,14 +122,20 @@ class OrderProcessingService {
             if ($productoId <= 0 || $cantidadSolicitada <= 0) {
                 continue;
             }
+            if ($cantidadSolicitada > 200) {
+                throw new Exception("La cantidad solicitada para el producto ID {$productoId} excede el límite permitido para compras minoristas (máximo 200 unidades).");
+            }
 
             $stmt->execute([
-                ':sucursal_id' => $sucursalId,
-                ':producto_id' => $productoId
+                ':sucursal_id'      => $sucursalId,
+                ':sucursal_id_lote' => $sucursalId,
+                ':sucursal_id_join' => $sucursalId,
+                ':producto_id'      => $productoId
             ]);
             $prod = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            $stockDisponible = $prod ? (int)$prod['stock_actual'] : 0;
+            // Disponibilidad real basada en lotes activos y vigentes para evitar inconsistencias
+            $stockDisponible = $prod ? min((int)$prod['stock_general'], (int)$prod['stock_lotes_disponible']) : 0;
             $nombreProd = $prod ? $prod['nombre'] : "Producto #{$productoId}";
             $cumpleStock = ($stockDisponible >= $cantidadSolicitada);
 
@@ -301,21 +317,34 @@ class OrderProcessingService {
                 $productoId = (int)$item['producto_id'];
                 $cantidad = (int)$item['cantidad'];
 
-                if ($cantidad <= 0) {
-                    throw new Exception("La cantidad solicitada para el producto ID {$productoId} debe ser mayor a 0.");
+                if ($cantidad <= 0 || $cantidad > 200) {
+                    throw new Exception("La cantidad solicitada para el producto ID {$productoId} debe estar entre 1 y 200 unidades (límite comercial minorista).");
                 }
 
-                // Consultar producto y stock general en sucursal con bloqueo FOR UPDATE
+                // Consultar producto, saldo en inventario y disponibilidad real en lotes activos con bloqueo FOR UPDATE
                 $stmtProd = $this->db->prepare(
-                    "SELECT p.id, p.nombre, p.codigo_sku, p.precio_venta, p.costo_base, COALESCE(i.stock_actual, 0) AS stock_actual
+                    "SELECT p.id, p.nombre, p.codigo_sku, p.precio_venta, p.costo_base, 
+                            COALESCE(i.stock_actual, 0) AS stock_actual,
+                            COALESCE(l.stock_lotes, 0) AS stock_lotes_disponible
                      FROM productos p
                      LEFT JOIN inventarios i ON i.producto_id = p.id AND i.sucursal_id = :sucursal_id
+                     LEFT JOIN (
+                         SELECT producto_id, sucursal_id, SUM(cantidad_disponible) AS stock_lotes
+                         FROM lotes
+                         WHERE sucursal_id = :sucursal_id_lote
+                           AND estado = 'DISPONIBLE'
+                           AND cantidad_disponible > 0
+                           AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURDATE())
+                         GROUP BY producto_id, sucursal_id
+                     ) l ON l.producto_id = p.id AND l.sucursal_id = :sucursal_id_join
                      WHERE p.id = :producto_id AND p.estado = 1
                      FOR UPDATE"
                 );
                 $stmtProd->execute([
-                    ':sucursal_id' => $sucursalId,
-                    ':producto_id' => $productoId
+                    ':sucursal_id'      => $sucursalId,
+                    ':sucursal_id_lote' => $sucursalId,
+                    ':sucursal_id_join' => $sucursalId,
+                    ':producto_id'      => $productoId
                 ]);
                 $prodData = $stmtProd->fetch();
 
@@ -324,11 +353,16 @@ class OrderProcessingService {
                 }
 
                 $stockActual = (int)$prodData['stock_actual'];
+                $stockLotesDisponible = (int)$prodData['stock_lotes_disponible'];
+                $stockRealVendible = min($stockActual, $stockLotesDisponible);
 
                 // Si es RETIRO_TIENDA con fecha posterior (requiere traslado) y el stock actual es menor a la cantidad,
                 // abastecemos automáticamente el lote de traslado inter-sucursal para cubrir la reserva del cliente
-                if ($tipoEntrega === 'RETIRO_TIENDA' && $requiereTraslado === 1 && $stockActual < $cantidad) {
-                    $faltante = $cantidad - $stockActual;
+                if ($tipoEntrega === 'RETIRO_TIENDA' && $requiereTraslado === 1 && $stockRealVendible < $cantidad) {
+                    $faltante = $cantidad - $stockRealVendible;
+                    if ($faltante > 200) {
+                        throw new Exception("El faltante para traslado ({$faltante} unidades) excede la capacidad logística por pedido.");
+                    }
                     $loteTrasladoId = $this->fifoService->registerBatch([
                         'sucursal_id'       => $sucursalId,
                         'producto_id'       => $productoId,
@@ -366,16 +400,37 @@ class OrderProcessingService {
                     ];
 
                     $stockActual += $faltante;
-                } elseif ($stockActual < $cantidad) {
-                    throw new Exception("Stock insuficiente para '{$prodData['nombre']}'. Disponible: {$stockActual}, Solicitado: {$cantidad}.");
+                } elseif ($stockRealVendible < $cantidad) {
+                    // Diagnóstico interno registrado para trazabilidad sin exponer volcados de BD al usuario final
+                    error_log(sprintf(
+                        "[STOCK_AUDIT] Inconsistencia de inventario para Producto ID %d ('%s') en Sucursal %d. Solicitado: %d, Stock consolidado: %d, Lotes disponibles: %d",
+                        $productoId,
+                        $prodData['nombre'],
+                        $sucursalId,
+                        $cantidad,
+                        $stockActual,
+                        $stockLotesDisponible
+                    ));
+                    throw new Exception("Lo sentimos, el producto '{$prodData['nombre']}' no cuenta con unidades disponibles actualmente en la sucursal seleccionada. Por favor actualiza tu carrito o selecciona otra sucursal.");
                 }
 
                 $precioUnitario = (float)$prodData['precio_venta'];
                 $subtotalItem = round($precioUnitario * $cantidad, 2);
                 $totalProductos += $subtotalItem;
 
-                // Aplicar algoritmo PEPS (reserva y descuento de lotes más antiguos)
-                $lotesAsignados = $this->fifoService->allocateFifoLots($sucursalId, $productoId, $cantidad);
+                // Aplicar algoritmo PEPS (reserva y descuento de lotes más antiguos con captura de errores amigable)
+                try {
+                    $lotesAsignados = $this->fifoService->allocateFifoLots($sucursalId, $productoId, $cantidad);
+                } catch (\Exception $fifoEx) {
+                    error_log(sprintf(
+                        "[STOCK_AUDIT] Error en asignación PEPS para Producto ID %d ('%s') en Sucursal %d: %s",
+                        $productoId,
+                        $prodData['nombre'],
+                        $sucursalId,
+                        $fifoEx->getMessage()
+                    ));
+                    throw new Exception("Lo sentimos, el producto '{$prodData['nombre']}' no cuenta con unidades disponibles actualmente en la sucursal seleccionada. Por favor actualiza tu carrito o selecciona otra sucursal.");
+                }
 
                 // Descontar inventario consolidado
                 $nuevoStock = $stockActual - $cantidad;
@@ -543,6 +598,20 @@ class OrderProcessingService {
                 'sucursal_id'        => $sucursalId,
                 'sucursal_nombre'    => $sucursal['nombre'],
                 'sucursal_direccion' => $sucursal['direccion'],
+                'sucursal_lat'       => (float)$sucursal['latitud'],
+                'sucursal_lng'       => (float)$sucursal['longitud'],
+                'direccion_destino'  => $deliveryInfo['direccion_completa'] ?? null,
+                'referencia_destino' => $deliveryInfo['referencia'] ?? null,
+                'latitud_destino'    => isset($deliveryInfo['latitud']) ? (float)$deliveryInfo['latitud'] : null,
+                'longitud_destino'   => isset($deliveryInfo['longitud']) ? (float)$deliveryInfo['longitud'] : null,
+                'distancia_km'       => isset($deliveryMetrics['distancia_km']) ? (float)$deliveryMetrics['distancia_km'] : 0.0,
+                'tiempo_estimado_min'=> isset($deliveryMetrics['tiempo_estimado_min']) ? (int)$deliveryMetrics['tiempo_estimado_min'] : 30,
+                'latitud_actual_repartidor'  => (float)$sucursal['latitud'],
+                'longitud_actual_repartidor' => (float)$sucursal['longitud'],
+                'repartidor_nombre'          => 'Motorizado Mass Express',
+                'es_invitado'        => $esInvitado,
+                'contacto_email'     => $contactoEmail,
+                'contacto_telefono'  => $contactoTel,
                 'delivery'           => $deliveryMetrics,
                 'detalles'           => $detallesParaInsertar,
                 'alertas_stock_bajo' => $alertasDisparadas

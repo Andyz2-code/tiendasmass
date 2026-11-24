@@ -162,7 +162,7 @@ class ProductoController {
 
         $this->repo->update($prodId, $updateData);
 
-        // Actualizar stock en sucursal si fue especificado
+        // Actualizar stock en sucursal si fue especificado y asegurar sincronización con lotes PEPS
         $db = \App\Helpers\Database::getConnection();
         if (isset($input['sucursal_id']) && isset($input['stock_actual'])) {
             $sucId = (int)$input['sucursal_id'];
@@ -178,6 +178,47 @@ class ProductoController {
                 ':stock'     => $newStock,
                 ':stock_upd' => $newStock
             ]);
+
+            // Sincronizar o crear lote activo si no existía ningún lote disponible
+            $stmtCheckLotes = $db->prepare("SELECT COALESCE(SUM(cantidad_disponible), 0) FROM lotes WHERE sucursal_id = :suc AND producto_id = :prod AND estado = 'DISPONIBLE'");
+            $stmtCheckLotes->execute([':suc' => $sucId, ':prod' => $prodId]);
+            $currentLotesQty = (int)$stmtCheckLotes->fetchColumn();
+
+            if ($newStock > 0 && $currentLotesQty === 0) {
+                $sku = $input['codigo_sku'] ?? ($existing['codigo_sku'] ?? 'PROD');
+                $codigoLote = 'LOT-' . strtoupper(substr(preg_replace('/[^A-Za-z0-9]/', '', $sku), 0, 4)) . '-' . date('ymd');
+                $costoUnitario = isset($input['costo_base']) ? (float)$input['costo_base'] : (float)$existing['costo_base'];
+                $esPerecedero = isset($input['es_perecedero']) ? (int)$input['es_perecedero'] : (int)$existing['es_perecedero'];
+                $fechaVenc = $esPerecedero ? date('Y-m-d', strtotime('+6 months')) : null;
+
+                $stmtLote = $db->prepare(
+                    "INSERT INTO lotes (sucursal_id, producto_id, codigo_lote, fecha_ingreso, fecha_vencimiento, cantidad_inicial, cantidad_disponible, costo_unitario_compra, ubicacion_almacen, estado)
+                     VALUES (:suc, :prod, :lote, CURDATE(), :venc, :cant, :disp, :costo, 'PASAJE-A1', 'DISPONIBLE')"
+                );
+                $stmtLote->execute([
+                    ':suc'   => $sucId,
+                    ':prod'  => $prodId,
+                    ':lote'  => $codigoLote,
+                    ':venc'  => $fechaVenc,
+                    ':cant'  => $newStock,
+                    ':disp'  => $newStock,
+                    ':costo' => $costoUnitario
+                ]);
+                $loteId = (int)$db->lastInsertId();
+
+                $stmtKardex = $db->prepare(
+                    "INSERT INTO movimientos_inventario (sucursal_id, producto_id, lote_id, tipo_movimiento, documento_referencia, cantidad, costo_unitario, saldo_anterior, saldo_nuevo, observaciones)
+                     VALUES (:suc, :prod, :lote, 'ENTRADA_COMPRA', 'AJUSTE-EDICION', :cant, :costo, 0, :nuevo, 'Ajuste de inventario por edición de producto en catálogo')"
+                );
+                $stmtKardex->execute([
+                    ':suc'   => $sucId,
+                    ':prod'  => $prodId,
+                    ':lote'  => $loteId,
+                    ':cant'  => $newStock,
+                    ':costo' => $costoUnitario,
+                    ':nuevo' => $newStock
+                ]);
+            }
         }
 
         $updatedProduct = $this->repo->getById($prodId);

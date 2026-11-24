@@ -65,16 +65,35 @@ class ProductoRepository {
     }
 
     public function getBySucursal(int $sucursalId, ?int $categoriaId = null, ?string $search = null): array {
+        // Obtenemos los productos activos y calculamos el stock vendible real basado en lotes activos y vigentes
         $sql = "SELECT p.id, p.categoria_id, c.nombre AS categoria_nombre, p.codigo_sku, p.codigo_barras,
                        p.nombre, p.descripcion, p.unidad_medida, p.precio_venta, p.costo_base,
                        p.es_perecedero, p.imagen_url, p.estado,
-                       i.stock_actual, i.stock_minimo, i.punto_reorden, i.clasificacion_abc
+                       COALESCE(l.stock_lotes_disponible, 0) AS stock_actual,
+                       COALESCE(i.stock_actual, 0) AS stock_inventario,
+                       COALESCE(l.stock_lotes_disponible, 0) AS stock_lotes_disponible,
+                       COALESCE(i.stock_minimo, 10) AS stock_minimo,
+                       COALESCE(i.punto_reorden, 20) AS punto_reorden,
+                       COALESCE(i.clasificacion_abc, 'B') AS clasificacion_abc
                 FROM productos p
                 JOIN categorias c ON p.categoria_id = c.id
-                JOIN inventarios i ON i.producto_id = p.id
-                WHERE i.sucursal_id = :sucursal_id AND p.estado = 1";
+                LEFT JOIN inventarios i ON i.producto_id = p.id AND i.sucursal_id = :sucursal_id
+                LEFT JOIN (
+                    SELECT producto_id, sucursal_id, SUM(cantidad_disponible) AS stock_lotes_disponible
+                    FROM lotes
+                    WHERE sucursal_id = :sucursal_id_lote
+                      AND estado = 'DISPONIBLE'
+                      AND cantidad_disponible > 0
+                      AND (fecha_vencimiento IS NULL OR fecha_vencimiento >= CURDATE())
+                    GROUP BY producto_id, sucursal_id
+                ) l ON l.producto_id = p.id AND l.sucursal_id = :sucursal_id_join
+                WHERE p.estado = 1";
 
-        $params = [':sucursal_id' => $sucursalId];
+        $params = [
+            ':sucursal_id'      => $sucursalId,
+            ':sucursal_id_lote' => $sucursalId,
+            ':sucursal_id_join' => $sucursalId
+        ];
 
         if ($categoriaId) {
             $sql .= " AND p.categoria_id = :cat_id";

@@ -60,31 +60,45 @@ class DeliveryController {
     public function track(string $pedido_id): void {
         $db = Database::getConnection();
         $sql = "SELECT d.*,
+                       p.id AS pedido_id,
                        p.codigo_pedido,
+                       p.numero_boleta,
+                       p.token_seguimiento,
                        p.estado_pedido,
                        p.tipo_entrega,
+                       p.es_invitado,
+                       p.contacto_email,
+                       p.contacto_telefono,
                        s.nombre AS sucursal_nombre,
                        s.direccion AS sucursal_direccion,
                        s.latitud AS sucursal_lat,
                        s.longitud AS sucursal_lng,
-                       c.nombres AS cliente_nombres,
-                       c.apellidos AS cliente_apellidos,
-                       c.telefono AS cliente_telefono
+                       COALESCE(c.nombres, p.contacto_email, 'Cliente Invitado') AS cliente_nombres,
+                       COALESCE(c.apellidos, '') AS cliente_apellidos,
+                       COALESCE(c.telefono, p.contacto_telefono, '') AS cliente_telefono
                 FROM deliveries d
                 JOIN pedidos p ON d.pedido_id = p.id
                 JOIN sucursales s ON p.sucursal_id = s.id
-                JOIN clientes c ON p.cliente_id = c.id
-                WHERE d.pedido_id = :id OR p.codigo_pedido = :cod
+                LEFT JOIN clientes c ON p.cliente_id = c.id
+                WHERE d.pedido_id = :id OR p.codigo_pedido = :cod OR p.token_seguimiento = :tok
                 LIMIT 1";
         $stmt = $db->prepare($sql);
         $stmt->execute([
             ':id'  => is_numeric($pedido_id) ? (int)$pedido_id : 0,
-            ':cod' => trim($pedido_id)
+            ':cod' => trim($pedido_id),
+            ':tok' => trim($pedido_id)
         ]);
         $delivery = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$delivery) {
             Response::error('Seguimiento de delivery no encontrado', 404);
+        }
+
+        // Si el repartidor aún no ha emitido coordenadas en vivo, se inicializa en la sucursal de origen
+        if (empty($delivery['latitud_actual_repartidor']) || empty($delivery['longitud_actual_repartidor'])) {
+            $delivery['latitud_actual_repartidor'] = $delivery['sucursal_lat'];
+            $delivery['longitud_actual_repartidor'] = $delivery['sucursal_lng'];
+            $delivery['posicion_origen_sucursal'] = true;
         }
 
         Response::success($delivery);
@@ -98,7 +112,7 @@ class DeliveryController {
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
         $validator = Validator::make($input, [
-            'pedido_id' => 'required|numeric',
+            'pedido_id' => 'required',
             'latitud'   => 'required|numeric',
             'longitud'  => 'required|numeric'
         ]);
@@ -108,6 +122,20 @@ class DeliveryController {
         }
 
         $db = Database::getConnection();
+        $pedidoParam = trim((string)$input['pedido_id']);
+
+        // Resolver el ID numérico si vino código de pedido o token
+        $stmtId = $db->prepare("SELECT id FROM pedidos WHERE id = :id OR codigo_pedido = :cod OR token_seguimiento = :tok LIMIT 1");
+        $stmtId->execute([
+            ':id'  => is_numeric($pedidoParam) ? (int)$pedidoParam : 0,
+            ':cod' => $pedidoParam,
+            ':tok' => $pedidoParam
+        ]);
+        $realPedidoId = $stmtId->fetchColumn();
+        if (!$realPedidoId) {
+            Response::error('Pedido no encontrado para actualizar ubicación', 404);
+        }
+
         $repartidorNombre = isset($input['repartidor_nombre']) ? trim((string)$input['repartidor_nombre']) : null;
 
         if ($repartidorNombre !== null && $repartidorNombre !== '') {
@@ -123,7 +151,7 @@ class DeliveryController {
                 ':lat'        => (float)$input['latitud'],
                 ':lng'        => (float)$input['longitud'],
                 ':rep_nombre' => $repartidorNombre,
-                ':pedido_id'  => (int)$input['pedido_id']
+                ':pedido_id'  => (int)$realPedidoId
             ]);
         } else {
             $stmt = $db->prepare(
@@ -136,7 +164,7 @@ class DeliveryController {
             $stmt->execute([
                 ':lat'       => (float)$input['latitud'],
                 ':lng'       => (float)$input['longitud'],
-                ':pedido_id' => (int)$input['pedido_id']
+                ':pedido_id' => (int)$realPedidoId
             ]);
         }
 
