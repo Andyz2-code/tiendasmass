@@ -51,7 +51,7 @@
 
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
-    const API_BASE = 'http://localhost/tiendasmass/backend/public/api';
+    const API_BASE = `${window.location.origin}${window.location.pathname.startsWith('/tiendasmass') ? '/tiendasmass' : ''}/backend/public/api`;
 
     const api = axios.create({
       baseURL: API_BASE,
@@ -3454,14 +3454,6 @@ return (
               >
                 <span>🔄 Consultar Ubicación</span>
               </button>
-              <button
-                onClick={() => setSimulating(!simulating)}
-                className={`px-3.5 py-2 font-extrabold text-xs rounded-xl shadow transition flex items-center gap-1.5 ${
-                  simulating ? 'bg-red-600 text-white animate-pulse' : 'bg-mass-yellow hover:bg-amber-400 text-stone-950'
-                }`}
-              >
-                <span>{simulating ? '⏹ Detener Demo' : '▶ Simular Demo'}</span>
-              </button>
               <button onClick={onBackToOrders} className="px-3 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 text-xs font-bold rounded-xl">
                 Mis Compras
               </button>
@@ -3713,17 +3705,6 @@ return (
                   <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-2 border rounded-lg" required />
                 </div>
                 <button type="submit" className="w-full py-2.5 bg-mass-yellow text-stone-950 font-extrabold rounded-xl shadow">Ingresar</button>
-
-                <div className="pt-2 text-[10px] text-stone-500 space-y-1">
-                  <div className="font-bold">Cliente de Prueba Rápido (Clave: 123456):</div>
-                  <button
-                    type="button"
-                    onClick={() => { setEmail('juan.perez@gmail.com'); setPassword('123456'); }}
-                    className="w-full py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded border border-amber-200 font-bold"
-                  >
-                    👤 Juan Pérez (DNI) / Clave: 123456
-                  </button>
-                </div>
               </form>
             ) : (
               <form onSubmit={handleRegister} className="space-y-2.5">

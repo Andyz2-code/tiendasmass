@@ -714,7 +714,7 @@
       <div className="space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-extrabold text-stone-900">Configuración Operativa del Sistema (ARKAN)</h1>
+            <h1 className="text-xl font-extrabold text-stone-900">Configuración Operativa del Sistema</h1>
             <p className="text-xs text-stone-500">Parámetros corporativos de inventarios PEPS, alertas y delivery.</p>
           </div>
           <button onClick={handleSave} disabled={saving} className="px-5 py-2.5 bg-mass-yellow hover:bg-amber-400 text-stone-950 font-black rounded-xl text-xs shadow">

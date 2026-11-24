@@ -278,7 +278,7 @@ class ReporteController {
                 GROUP BY s.id
                 ORDER BY total_ventas DESC
             ");
-            $stmtSucursales->execute($paramsPeriodo);
+            $stmtSucursales->execute([':f_inicio' => $fechaInicio, ':f_fin' => $fechaFin]);
             $comparativaSucursales = $stmtSucursales->fetchAll(PDO::FETCH_ASSOC);
         }
 

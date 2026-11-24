@@ -51,7 +51,7 @@
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
-    const API_BASE = 'http://localhost/tiendasmass/backend/public/api';
+    const API_BASE = `${window.location.origin}${window.location.pathname.startsWith('/tiendasmass') ? '/tiendasmass' : ''}/backend/public/api`;
 
     const api = axios.create({
       baseURL: API_BASE,
@@ -248,7 +248,7 @@
                 { id: 'delivery', label: 'Rastreo Satelital GPS', icon: '🛵' },
                 { id: 'banners', label: 'Banners & Promociones', icon: '🖼️' },
                 { id: 'reportes', label: 'Módulo de Desmedro / Merma', icon: '📉', badge: 'NIC 2' },
-                { id: 'compras', label: 'Compras & Proveedores', icon: '🛍️', badge: 'ARKAN' },
+                { id: 'compras', label: 'Compras & Proveedores', icon: '🛍️' },
                 { id: 'traslados', label: 'Traslados entre Tiendas', icon: '🚚' },
                 { id: 'valorizado', label: 'Inv. Valorizado & Etiquetas', icon: '🏷️' },
                 ...(isAdmin ? [
@@ -569,8 +569,8 @@
     // 1. LOGIN EXCLUSIVO ADMIN / SUPERVISOR
     // ==========================================
     function LoginAdminSupervisor({ onSuccess }) {
-      const [email, setEmail] = useState('admin@tiendasmass.pe');
-      const [password, setPassword] = useState('123456');
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
       const [error, setError] = useState('');
       const [loading, setLoading] = useState(false);
 
@@ -667,26 +667,6 @@
               >
                 {loading ? 'Validando Credenciales...' : 'Ingresar al Backoffice'}
               </button>
-
-              <div className="pt-3 border-t text-[11px] text-stone-500 space-y-2">
-                <div className="font-bold text-stone-700">Acceso Rápido de Prueba (Clave: <span className="font-mono text-mass-red">123456</span>):</div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fillCreds('admin@tiendasmass.pe')}
-                    className="p-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-left font-bold text-stone-800 truncate border"
-                  >
-                    👑 Administrador
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fillCreds('supervisor.centro@tiendasmass.pe')}
-                    className="p-2 bg-stone-100 hover:bg-stone-200 rounded-lg text-left font-bold text-stone-800 truncate border"
-                  >
-                    📦 Supervisor Centro
-                  </button>
-                </div>
-              </div>
             </form>
 
             <div className="text-center pt-2">
