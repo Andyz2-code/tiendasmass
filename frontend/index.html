@@ -1245,7 +1245,7 @@
         <div className="p-3 bg-amber-50/90 rounded-2xl border-2 border-amber-300 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 font-black text-xs text-stone-900">
-              <span className="w-5 h-5 rounded-full bg-stone-900 text-yellow-300 flex items-center justify-center text-[11px] shadow-xs">🤖</span>
+              <img src="assets/massi-bot.jpg" alt="Massi" className="w-6 h-6 rounded-full object-cover border border-amber-400 shadow-xs" />
               <span>Massi te recomienda para esta compra:</span>
             </div>
             <button
@@ -1426,9 +1426,9 @@
                 type="button"
                 onClick={() => setIsOpen(true)}
                 aria-label="Abrir asistente de ahorro Massi"
-                className="relative bg-gradient-to-tr from-stone-900 via-stone-850 to-stone-900 text-yellow-300 p-3.5 rounded-full shadow-2xl border-2 border-amber-400 hover:scale-110 active:scale-95 transition flex items-center justify-center font-black group cursor-pointer"
+                className="relative bg-white p-0.5 rounded-full shadow-2xl border-2 border-amber-400 hover:scale-110 active:scale-95 transition flex items-center justify-center group cursor-pointer"
               >
-                <span className="text-xl group-hover:rotate-12 transition-transform">🤖</span>
+                <img src="assets/massi-bot.jpg" alt="Massi Bot" className="w-12 h-12 rounded-full object-cover group-hover:rotate-6 transition-transform" />
                 {cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-mass-red text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow animate-pulse">
                     ★
@@ -1448,9 +1448,7 @@
               {/* Cabecera del Chat */}
               <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-amber-500 p-3.5 text-stone-950 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-stone-900 text-yellow-300 flex items-center justify-center font-black text-sm shadow">
-                    🤖
-                  </div>
+                  <img src="assets/massi-bot.jpg" alt="Massi" className="w-9 h-9 rounded-full object-cover border-2 border-white shadow" />
                   <div>
                     <h3 className="font-black text-xs sm:text-sm leading-tight flex items-center gap-1.5">
                       <span>Massi – Asistente de Ahorro</span>

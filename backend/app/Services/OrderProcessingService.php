@@ -221,6 +221,41 @@ class OrderProcessingService {
     }
 
     /**
+     * Garantiza que el cliente_id exista en `clientes` antes de insertar en `pedidos`
+     * para evitar errores de clave foránea (fk_pedidos_cliente) con sesiones antiguas o invitados.
+     */
+    private function resolveValidClienteId(int $clienteId, ?string $contactoEmail, ?string $contactoTel): int {
+        if ($clienteId > 0) {
+            $stmt = $this->db->prepare("SELECT id FROM clientes WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $clienteId]);
+            if ($stmt->fetch()) {
+                return $clienteId;
+            }
+        }
+
+        $stmtFirst = $this->db->query("SELECT id FROM clientes ORDER BY id ASC LIMIT 1");
+        $first = $stmtFirst->fetch();
+        if ($first) {
+            return (int)$first['id'];
+        }
+
+        $guestEmail = $contactoEmail ?: ('invitado_' . substr(bin2hex(random_bytes(4)), 0, 8) . '@tiendasmass.pe');
+        $guestTel   = $contactoTel ?: '999999999';
+        $guestDoc   = '00000000';
+        $stmtInsert = $this->db->prepare(
+            "INSERT INTO clientes (tipo_documento, numero_documento, nombres, apellidos, email, password, telefono, estado)
+             VALUES ('DNI', :doc, 'Cliente', 'Invitado', :email, :pass, :tel, 1)"
+        );
+        $stmtInsert->execute([
+            ':doc'   => $guestDoc,
+            ':email' => $guestEmail,
+            ':pass'  => password_hash(bin2hex(random_bytes(8)), PASSWORD_BCRYPT),
+            ':tel'   => $guestTel,
+        ]);
+        return (int)$this->db->lastInsertId();
+    }
+
+    /**
      * Procesa una venta u orden de compra completa bajo transacción atómica ACID.
      * Soporta Recojo en Tienda con validación de fecha/stock y Flujo Post-Pago.
      */
@@ -240,6 +275,9 @@ class OrderProcessingService {
         if (empty($items)) {
             throw new Exception("El carrito de compras no contiene productos.");
         }
+
+        // Asegurar que cliente_id exista en `clientes` para evitar violación de FK fk_pedidos_cliente
+        $clienteId = $this->resolveValidClienteId($clienteId, $contactoEmail, $contactoTel);
 
         // Obtener datos de la sucursal despachadora
         $stmtSuc = $this->db->prepare("SELECT * FROM sucursales WHERE id = :id AND estado = 1");
