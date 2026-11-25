@@ -342,9 +342,14 @@ class DeliveryController {
             $riderStatus = 'PENDIENTE';
             $estadoPedido = strtoupper((string)$row['estado_pedido']);
             $estadoDelivery = strtoupper((string)($row['estado_delivery'] ?? 'ASIGNADO'));
+            $repNombre = trim((string)($row['repartidor_nombre'] ?? ''));
+            $tieneRiderAsignado = ($repNombre !== '' && strcasecmp($repNombre, 'Motorizado Mass Express') !== 0);
 
             if ($estadoPedido === 'ENTREGADO' || $estadoDelivery === 'ENTREGADO') {
                 $riderStatus = 'ENTREGADO';
+            } elseif (!$tieneRiderAsignado) {
+                // Si el pedido aún no fue tomado por un rider desde la app, mostrarlo en Disponibles
+                $riderStatus = 'PENDIENTE';
             } elseif ($estadoPedido === 'DESPACHADO' || $estadoDelivery === 'EN_RUTA') {
                 $riderStatus = 'EN_CAMINO';
             } elseif ($estadoPedido === 'LISTO_PARA_DESPACHO') {
