@@ -176,6 +176,115 @@ class DeliveryController {
         ], 'Posición GPS actualizada');
     }
 
+    private function ensureRidersTable(PDO $db): void {
+        $db->exec(
+            "CREATE TABLE IF NOT EXISTS repartidores (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                codigo_repartidor VARCHAR(30) NOT NULL UNIQUE,
+                nombres VARCHAR(100) NOT NULL,
+                apellidos VARCHAR(100) NOT NULL DEFAULT '',
+                telefono VARCHAR(20) NOT NULL,
+                email VARCHAR(150) NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL,
+                tipo_vehiculo VARCHAR(30) NOT NULL DEFAULT 'MOTO',
+                placa VARCHAR(20) NOT NULL DEFAULT 'MASS-01',
+                sucursal_id INT UNSIGNED NULL,
+                estado TINYINT(1) NOT NULL DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+        );
+    }
+
+    private function buildRiderToken(array $riderProfile): string {
+        $secret = $_ENV['JWT_SECRET'] ?? 'TiendasMass_SuperSecretKey_Huancayo_2026_Key_MustBeLongAndSecure!';
+        return JWT::encode([
+            'sub'           => $riderProfile['rider_id'],
+            'employee_code' => $riderProfile['employee_code'],
+            'rol'           => 'Rider',
+            'sucursal_id'   => $riderProfile['sucursal_id'],
+        ], $secret, 24);
+    }
+
+    /**
+     * POST /api/riders/register
+     * Crea una nueva cuenta de repartidor para la app móvil Mass Rider
+     */
+    public function riderRegister(): void {
+        $input = json_decode(file_get_contents('php://input'), true) ?? [];
+        $fullName = trim((string)($input['full_name'] ?? ''));
+        $nombres = trim((string)($input['nombres'] ?? ''));
+        $apellidos = trim((string)($input['apellidos'] ?? ''));
+        if ($nombres === '' && $fullName !== '') {
+            $parts = preg_split('/\s+/', $fullName, 2);
+            $nombres = $parts[0] ?? '';
+            $apellidos = $parts[1] ?? '';
+        }
+
+        $phone = trim((string)($input['phone'] ?? $input['telefono'] ?? ''));
+        $email = trim((string)($input['email'] ?? ''));
+        $password = (string)($input['password'] ?? '');
+        $vehicleType = strtoupper(trim((string)($input['vehicle_type'] ?? 'MOTO')));
+        $vehiclePlate = strtoupper(trim((string)($input['vehicle_plate'] ?? 'SIN-PLACA')));
+        $requestedCode = strtoupper(trim((string)($input['employee_code'] ?? '')));
+
+        if ($nombres === '' || $phone === '' || strlen($password) < 4) {
+            Response::error('Nombre, teléfono y contraseña (mínimo 4 caracteres) son obligatorios', 422);
+        }
+
+        $db = Database::getConnection();
+        $this->ensureRidersTable($db);
+
+        $stmtSuc = $db->query("SELECT id, nombre FROM sucursales WHERE estado = 1 ORDER BY id ASC LIMIT 1");
+        $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tiendas Mass Principal'];
+        $sucursalId = isset($input['sucursal_id']) && is_numeric($input['sucursal_id'])
+            ? (int)$input['sucursal_id']
+            : (int)$sucursal['id'];
+
+        $code = $requestedCode !== ''
+            ? $requestedCode
+            : ('MASS-R-' . str_pad((string)random_int(100, 999), 3, '0', STR_PAD_LEFT));
+
+        $stmtDup = $db->prepare("SELECT id FROM repartidores WHERE UPPER(codigo_repartidor) = :code" . ($email !== '' ? " OR UPPER(email) = :email" : "") . " LIMIT 1");
+        $dupParams = [':code' => $code];
+        if ($email !== '') {
+            $dupParams[':email'] = strtoupper($email);
+        }
+        $stmtDup->execute($dupParams);
+        if ($stmtDup->fetch()) {
+            Response::error('Ya existe un repartidor registrado con ese código o correo', 409);
+        }
+
+        $stmtIns = $db->prepare(
+            "INSERT INTO repartidores (codigo_repartidor, nombres, apellidos, telefono, email, password_hash, tipo_vehiculo, placa, sucursal_id, estado)
+             VALUES (:code, :nombres, :apellidos, :tel, :email, :hash, :veh, :placa, :suc, 1)"
+        );
+        $stmtIns->execute([
+            ':code'      => $code,
+            ':nombres'   => $nombres,
+            ':apellidos' => $apellidos,
+            ':tel'       => $phone,
+            ':email'     => $email !== '' ? $email : null,
+            ':hash'      => password_hash($password, PASSWORD_BCRYPT),
+            ':veh'       => $vehicleType !== '' ? $vehicleType : 'MOTO',
+            ':placa'     => $vehiclePlate !== '' ? $vehiclePlate : 'SIN-PLACA',
+            ':suc'       => $sucursalId,
+        ]);
+
+        $newId = (int)$db->lastInsertId();
+        $riderProfile = [
+            'rider_id'        => 'MASS-R-' . $newId,
+            'employee_code'   => $code,
+            'full_name'       => trim($nombres . ' ' . $apellidos),
+            'phone'           => $phone,
+            'vehicle_type'    => $vehicleType !== '' ? $vehicleType : 'MOTO',
+            'vehicle_plate'   => $vehiclePlate !== '' ? $vehiclePlate : 'SIN-PLACA',
+            'home_store_name' => $sucursal['nombre'],
+            'sucursal_id'     => $sucursalId,
+        ];
+        $riderProfile['auth_token'] = $this->buildRiderToken($riderProfile);
+        Response::success($riderProfile, 'Cuenta de repartidor creada con éxito', 201);
+    }
+
     /**
      * POST /api/riders/login
      * Autentica al repartidor de la app móvil Mass Rider contra la tienda web
@@ -190,78 +299,96 @@ class DeliveryController {
         }
 
         $db = Database::getConnection();
+        $this->ensureRidersTable($db);
         $stmtSuc = $db->query("SELECT id, nombre FROM sucursales WHERE estado = 1 ORDER BY id ASC LIMIT 1");
         $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tiendas Mass Principal'];
 
-        // Verificar si coincide con algún usuario registrado en la BD (por email)
-        $stmtUser = $db->prepare("SELECT u.*, r.nombre AS rol_nombre, s.nombre AS sucursal_nombre
-                                  FROM usuarios u
-                                  JOIN roles r ON u.rol_id = r.id
-                                  LEFT JOIN sucursales s ON u.sucursal_id = s.id
-                                  WHERE UPPER(u.email) = :code AND u.estado = 1
-                                  LIMIT 1");
-        $stmtUser->execute([':code' => $code]);
-        $dbUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
-
         $riderProfile = null;
-        if ($dbUser && password_verify($password, $dbUser['password_hash'])) {
+
+        // 1. Verificar en la tabla dedicada de repartidores
+        $stmtRep = $db->prepare(
+            "SELECT r.*, s.nombre AS sucursal_nombre
+             FROM repartidores r
+             LEFT JOIN sucursales s ON r.sucursal_id = s.id
+             WHERE (UPPER(r.codigo_repartidor) = :code OR UPPER(r.email) = :code) AND r.estado = 1
+             LIMIT 1"
+        );
+        $stmtRep->execute([':code' => $code]);
+        $dbRep = $stmtRep->fetch(PDO::FETCH_ASSOC);
+
+        if ($dbRep && password_verify($password, $dbRep['password_hash'])) {
             $riderProfile = [
-                'rider_id'        => 'MASS-U-' . $dbUser['id'],
-                'employee_code'   => $code,
-                'full_name'       => trim($dbUser['nombres'] . ' ' . $dbUser['apellidos']),
-                'phone'           => $dbUser['telefono'] ?? '+51987654321',
-                'vehicle_type'    => 'MOTO',
-                'vehicle_plate'   => 'MASS-01',
-                'home_store_name' => $dbUser['sucursal_nombre'] ?? $sucursal['nombre'],
-                'sucursal_id'     => (int)($dbUser['sucursal_id'] ?? $sucursal['id']),
+                'rider_id'        => 'MASS-R-' . $dbRep['id'],
+                'employee_code'   => $dbRep['codigo_repartidor'],
+                'full_name'       => trim($dbRep['nombres'] . ' ' . $dbRep['apellidos']),
+                'phone'           => $dbRep['telefono'],
+                'vehicle_type'    => $dbRep['tipo_vehiculo'] ?: 'MOTO',
+                'vehicle_plate'   => $dbRep['placa'] ?: 'MASS-01',
+                'home_store_name' => $dbRep['sucursal_nombre'] ?? $sucursal['nombre'],
+                'sucursal_id'     => (int)($dbRep['sucursal_id'] ?? $sucursal['id']),
             ];
         } else {
-            // Credenciales operativas de repartidores Mass
-            $ridersCatalog = [
-                'MASS-R-804' => [
-                    'password'      => '1234',
-                    'rider_id'      => 'MASS-R-804',
-                    'full_name'     => 'Pedro Ramírez',
-                    'phone'         => '+51987654321',
-                    'vehicle_type'  => 'MOTO',
-                    'vehicle_plate' => '4821-AM',
-                ],
-                'MASS-R-001' => [
-                    'password'      => '1234',
-                    'rider_id'      => 'MASS-R-001',
-                    'full_name'     => 'Carlos Mendoza',
-                    'phone'         => '+51965432100',
-                    'vehicle_type'  => 'MOTO',
-                    'vehicle_plate' => '7310-HY',
-                ],
-            ];
+            // 2. Verificar si coincide con algún usuario registrado en la BD (por email)
+            $stmtUser = $db->prepare("SELECT u.*, r.nombre AS rol_nombre, s.nombre AS sucursal_nombre
+                                      FROM usuarios u
+                                      JOIN roles r ON u.rol_id = r.id
+                                      LEFT JOIN sucursales s ON u.sucursal_id = s.id
+                                      WHERE UPPER(u.email) = :code AND u.estado = 1
+                                      LIMIT 1");
+            $stmtUser->execute([':code' => $code]);
+            $dbUser = $stmtUser->fetch(PDO::FETCH_ASSOC);
 
-            if (!isset($ridersCatalog[$code]) || $ridersCatalog[$code]['password'] !== $password) {
-                Response::error('Código de repartidor o contraseña incorrectos', 401);
+            if ($dbUser && password_verify($password, $dbUser['password'] ?? '')) {
+                $riderProfile = [
+                    'rider_id'        => 'MASS-U-' . $dbUser['id'],
+                    'employee_code'   => $code,
+                    'full_name'       => trim($dbUser['nombres'] . ' ' . $dbUser['apellidos']),
+                    'phone'           => $dbUser['telefono'] ?? '+51987654321',
+                    'vehicle_type'    => 'MOTO',
+                    'vehicle_plate'   => 'MASS-01',
+                    'home_store_name' => $dbUser['sucursal_nombre'] ?? $sucursal['nombre'],
+                    'sucursal_id'     => (int)($dbUser['sucursal_id'] ?? $sucursal['id']),
+                ];
+            } else {
+                // 3. Credenciales operativas de repartidores Mass
+                $ridersCatalog = [
+                    'MASS-R-804' => [
+                        'password'      => '1234',
+                        'rider_id'      => 'MASS-R-804',
+                        'full_name'     => 'Pedro Ramírez',
+                        'phone'         => '+51987654321',
+                        'vehicle_type'  => 'MOTO',
+                        'vehicle_plate' => '4821-AM',
+                    ],
+                    'MASS-R-001' => [
+                        'password'      => '1234',
+                        'rider_id'      => 'MASS-R-001',
+                        'full_name'     => 'Carlos Mendoza',
+                        'phone'         => '+51965432100',
+                        'vehicle_type'  => 'MOTO',
+                        'vehicle_plate' => '7310-HY',
+                    ],
+                ];
+
+                if (!isset($ridersCatalog[$code]) || $ridersCatalog[$code]['password'] !== $password) {
+                    Response::error('Código de repartidor o contraseña incorrectos', 401);
+                }
+
+                $r = $ridersCatalog[$code];
+                $riderProfile = [
+                    'rider_id'        => $r['rider_id'],
+                    'employee_code'   => $code,
+                    'full_name'       => $r['full_name'],
+                    'phone'           => $r['phone'],
+                    'vehicle_type'    => $r['vehicle_type'],
+                    'vehicle_plate'   => $r['vehicle_plate'],
+                    'home_store_name' => $sucursal['nombre'],
+                    'sucursal_id'     => (int)$sucursal['id'],
+                ];
             }
-
-            $r = $ridersCatalog[$code];
-            $riderProfile = [
-                'rider_id'        => $r['rider_id'],
-                'employee_code'   => $code,
-                'full_name'       => $r['full_name'],
-                'phone'           => $r['phone'],
-                'vehicle_type'    => $r['vehicle_type'],
-                'vehicle_plate'   => $r['vehicle_plate'],
-                'home_store_name' => $sucursal['nombre'],
-                'sucursal_id'     => (int)$sucursal['id'],
-            ];
         }
 
-        $secret = $_ENV['JWT_SECRET'] ?? 'TiendasMass_SuperSecretKey_Huancayo_2026_Key_MustBeLongAndSecure!';
-        $token = JWT::encode([
-            'sub'           => $riderProfile['rider_id'],
-            'employee_code' => $riderProfile['employee_code'],
-            'rol'           => 'Rider',
-            'sucursal_id'   => $riderProfile['sucursal_id'],
-        ], $secret, 24);
-
-        $riderProfile['auth_token'] = $token;
+        $riderProfile['auth_token'] = $this->buildRiderToken($riderProfile);
         Response::success($riderProfile, 'Turno de repartidor iniciado');
     }
 

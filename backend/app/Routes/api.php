@@ -68,6 +68,7 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->getMapping('/delivery/track/{pedido_id}', 'DeliveryController@track');
     $api->postMapping('/delivery/update-location', 'DeliveryController@updateLocation');
     $api->postMapping('/riders/login', 'DeliveryController@riderLogin');
+    $api->postMapping('/riders/register', 'DeliveryController@riderRegister');
     $api->getMapping('/riders/orders', 'DeliveryController@riderOrders');
     $api->postMapping('/riders/orders/{id}/status', 'DeliveryController@riderUpdateOrderStatus');
     $api->getMapping('/riders/settlement', 'DeliveryController@riderSettlement');
