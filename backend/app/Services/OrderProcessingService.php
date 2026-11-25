@@ -690,11 +690,12 @@ class OrderProcessingService {
         $docReceptor = 'SIN DOCUMENTO (INVITADO)';
 
         if ($modo === 'LOGIN' && !empty($input['cliente_id'])) {
-            $clienteId = (int)$input['cliente_id'];
+            $candidateId = (int)$input['cliente_id'];
             $stmtCli = $this->db->prepare("SELECT * FROM clientes WHERE id = :id");
-            $stmtCli->execute([':id' => $clienteId]);
+            $stmtCli->execute([':id' => $candidateId]);
             $cli = $stmtCli->fetch(PDO::FETCH_ASSOC);
             if ($cli) {
+                $clienteId = $candidateId;
                 $emailDestino = trim($input['email'] ?? $cli['email']);
                 $telefonoDestino = trim($input['telefono'] ?? $cli['telefono']);
                 $nombreReceptor = $cli['nombres'] . ' ' . $cli['apellidos'];
@@ -715,6 +716,8 @@ class OrderProcessingService {
         if (empty($telefonoDestino) || strlen(preg_replace('/\D/', '', $telefonoDestino)) < 7) {
             throw new Exception("Debe ingresar un número telefónico válido para recibir las notificaciones de su pedido.");
         }
+
+        $clienteId = $this->resolveValidClienteId($clienteId, $emailDestino, $telefonoDestino);
 
         $numeroBoleta = !empty($pedido['numero_boleta'])
             ? $pedido['numero_boleta']
