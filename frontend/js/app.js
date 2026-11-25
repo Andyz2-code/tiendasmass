@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TIENDAS MASS - Controlador Principal de Tienda y Catálogo
+   ARKENYA - Controlador Principal de Tienda y Catálogo
    Arquitectura: /frontend/js/app.js
    ========================================================================== */
 

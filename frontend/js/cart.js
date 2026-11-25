@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TIENDAS MASS - Gestor de Carrito de Compras
+   ARKENYA - Gestor de Carrito de Compras
    Arquitectura: /frontend/js/cart.js
    ========================================================================== */
 

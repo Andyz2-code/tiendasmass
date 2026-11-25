@@ -764,7 +764,7 @@ class OrderProcessingService {
 
         $boletaElectronica = [
             'emisor' => [
-                'razon_social' => 'TIENDAS MASS PERÚ S.A.C.',
+                'razon_social' => 'ARKENYA PERÚ S.A.C.',
                 'ruc'          => '20601234567',
                 'sucursal'     => $pedido['sucursal_nombre'],
                 'direccion'    => $pedido['sucursal_direccion']

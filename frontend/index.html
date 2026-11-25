@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tiendas Mass - Tienda Virtual | Canasta Básica de Ahorro</title>
+  <title>Arkenya - Gestión Comercial, Tienda Virtual & Delivery</title>
   <link rel="icon" type="image/svg+xml" href="https://upload.wikimedia.org/wikipedia/commons/4/4b/Mass_logo.svg">
   <!-- Fuentes e Iconos -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -91,7 +91,7 @@
       const [isThankYouOpen, setIsThankYouOpen] = useState(false);
       const [thankYouInfo, setThankYouInfo] = useState(null);
       const [clientOrdersCount, setClientOrdersCount] = useState(0);
-      const [isMassiChatOpen, setIsMassiChatOpen] = useState(() => new URLSearchParams(window.location.search).get('massi') === 'open');
+      const [isArkiChatOpen, setIsArkiChatOpen] = useState(() => new URLSearchParams(window.location.search).get('massi') === 'open');
 
       // Estados de Búsqueda con Debounce de 500ms
       const [categorias, setCategorias] = useState([]);
@@ -204,10 +204,10 @@
         <div className="min-h-screen flex flex-col">
           {/* Barra Superior con Anuncio Comercial */}
           <div className="bg-mass-red text-white text-[11px] font-bold py-1.5 px-4 text-center">
-            <span>¡TIENDAS MASS HUANCAYO! Precios bajos todos los días y entregas express a domicilio.</span>
+            <span>¡ARKENYA GESTIÓN COMERCIAL! Plataforma E-Commerce, POS y Delivery para minimarkets y tiendas.</span>
           </div>
 
-          {/* Header Principal Tiendas Mass (Color Amarillo y Logo Original) */}
+          {/* Header Principal Arkenya (Color Amarillo y Logo Original) */}
           <header className="bg-mass-yellow shadow-md sticky top-0 z-30">
             <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between gap-4">
               
@@ -221,11 +221,11 @@
                   setView('catalogo');
                 }}
                 className="flex items-center cursor-pointer shrink-0 group py-1"
-                title="Ir al inicio de Tiendas Mass"
+                title="Ir al inicio de Arkenya"
               >
                 <img
                   src="assets/images/logo-mass-oficial.png"
-                  alt="Tiendas Mass - Precios bajos, ¡cerca de ti!"
+                  alt="Arkenya - Precios bajos, ¡cerca de ti!"
                   className="h-9 sm:h-11 md:h-12 w-auto max-w-[200px] sm:max-w-[270px] md:max-w-[320px] object-contain select-none group-hover:scale-102 transition-transform"
                   onError={(e) => { e.target.src = 'assets/logo-mass-oficial.png'; }}
                 />
@@ -305,7 +305,7 @@
                   value={selectedBranch?.id || ''}
                   onChange={(e) => handleSelectBranch(e.target.value)}
                   className="font-bold text-stone-900 bg-transparent focus:outline-none cursor-pointer text-xs pr-1"
-                  aria-label="Seleccionar sucursal de Tiendas Mass"
+                  aria-label="Seleccionar sucursal de Arkenya"
                 >
                   {sucursales.map(s => (
                     <option key={s.id} value={s.id}>{s.nombre}</option>
@@ -475,7 +475,7 @@
                 value={selectedBranch?.id || ''}
                 onChange={(e) => handleSelectBranch(e.target.value)}
                 className="font-bold text-stone-900 bg-transparent focus:outline-none cursor-pointer text-xs flex-1"
-                aria-label="Seleccionar sucursal de Tiendas Mass"
+                aria-label="Seleccionar sucursal de Arkenya"
               >
                 {sucursales.map(s => (
                   <option key={s.id} value={s.id}>{s.nombre}</option>
@@ -733,12 +733,12 @@
 
                 {cart.length > 0 && (
                   <div className="p-4 border-t bg-stone-50 space-y-3">
-                    {/* Recomendaciones Proactivas de Massi dentro de la Canasta */}
-                    <MassiCartRecommendations
+                    {/* Recomendaciones Proactivas de Arki dentro de la Canasta */}
+                    <ArkiCartRecommendations
                       cart={cart}
                       selectedBranch={selectedBranch}
                       onAddToCart={addToCart}
-                      onOpenChat={() => setIsMassiChatOpen(true)}
+                      onOpenChat={() => setIsArkiChatOpen(true)}
                     />
 
                     <div className="space-y-1 text-xs">
@@ -821,18 +821,18 @@
 
           <AccessibilityWidget />
 
-          {/* Widget Flotante del Asistente Massi Afuera (Bottom-Right) */}
-          <MassiFloatingChatWidget
+          {/* Widget Flotante del Asistente Arki Afuera (Bottom-Right) */}
+          <ArkiFloatingChatWidget
             cart={cart}
             selectedBranch={selectedBranch}
             onAddToCart={addToCart}
-            isOpen={isMassiChatOpen}
-            setIsOpen={setIsMassiChatOpen}
+            isOpen={isArkiChatOpen}
+            setIsOpen={setIsArkiChatOpen}
           />
 
           <footer className="bg-stone-900 text-stone-400 text-xs py-8 border-t border-stone-800 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center space-y-2">
-              <p className="font-bold text-white">Tiendas Mass © 2026 – Portal de Ventas Omnicanal y Ahorro</p>
+              <p className="font-bold text-white">Arkenya © 2026 – Portal de Ventas Omnicanal y Ahorro</p>
               <p className="text-[11px] text-stone-500">Precios bajos garantizados en Huancayo y todo el Perú. Todos los derechos reservados.</p>
             </div>
           </footer>
@@ -1192,7 +1192,7 @@
     // ==========================================
     // MASSI – RECOMENDACIONES DENTRO DE LA CANASTA
     // ==========================================
-    function MassiCartRecommendations({ cart, selectedBranch, onAddToCart, onOpenChat }) {
+    function ArkiCartRecommendations({ cart, selectedBranch, onAddToCart, onOpenChat }) {
       const [recs, setRecs] = useState([]);
       const [loading, setLoading] = useState(false);
       const [addedMap, setAddedMap] = useState({});
@@ -1214,7 +1214,7 @@
             setRecs(payload.productos.slice(0, 2));
           }
         }).catch(err => {
-          console.error("Error al cargar sugerencias Massi:", err);
+          console.error("Error al cargar sugerencias Arki:", err);
         }).finally(() => {
           if (isMounted) setLoading(false);
         });
@@ -1226,7 +1226,7 @@
         return (
           <div className="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs text-stone-600 flex items-center gap-2">
             <span className="animate-spin text-amber-600">✨</span>
-            <span>Massi está buscando las mejores combinaciones de ahorro...</span>
+            <span>Arki está buscando las mejores combinaciones de ahorro...</span>
           </div>
         );
       }
@@ -1245,8 +1245,8 @@
         <div className="p-3 bg-amber-50/90 rounded-2xl border-2 border-amber-300 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 font-black text-xs text-stone-900">
-              <img src="assets/massi-bot.jpg" alt="Massi" className="w-6 h-6 rounded-full object-cover border border-amber-400 shadow-xs" />
-              <span>Massi te recomienda para esta compra:</span>
+              <img src="assets/massi-bot.jpg" alt="Arki" className="w-6 h-6 rounded-full object-cover border border-amber-400 shadow-xs" />
+              <span>Arki te recomienda para esta compra:</span>
             </div>
             <button
               type="button"
@@ -1304,7 +1304,7 @@
     // MASSI – ASISTENTE FLOTANTE AFUERA (BOTTOM-RIGHT)
     // Chatbot proactivo: el mismo chat recomienda automáticamente al abrirse
     // ==========================================
-    function MassiFloatingChatWidget({ cart, selectedBranch, onAddToCart, isOpen, setIsOpen }) {
+    function ArkiFloatingChatWidget({ cart, selectedBranch, onAddToCart, isOpen, setIsOpen }) {
       const [loading, setLoading] = useState(false);
       const [messages, setMessages] = useState([]);
       const [recommendations, setRecommendations] = useState([]);
@@ -1325,7 +1325,7 @@
           setMessages([
             {
               sender: 'bot',
-              text: '¡Hola! Soy Massi, tu asistente inteligente de ahorro en Tiendas Mass. Agrega productos a tu canasta y te recomendaré de inmediato los mejores complementos y ofertas.'
+              text: '¡Hola! Soy Arki, tu asistente inteligente de ahorro en Arkenya. Agrega productos a tu canasta y te recomendaré de inmediato los mejores complementos y ofertas.'
             }
           ]);
           setRecommendations([]);
@@ -1356,7 +1356,7 @@
             }
           }
         } catch (err) {
-          console.error("Error en Massi Chat:", err);
+          console.error("Error en Arki Chat:", err);
           setMessages(prev => [
             ...prev,
             { sender: 'bot', text: 'En este momento tengo un retraso en la conexión, pero puedes seguir agregando productos con normalidad.' }
@@ -1411,11 +1411,11 @@
                 <div
                   onClick={() => setIsOpen(true)}
                   className="hidden sm:flex items-center gap-2 bg-white px-3.5 py-2 rounded-2xl shadow-xl border-2 border-amber-400 cursor-pointer hover:scale-102 transition animate-bounce duration-1000"
-                  title="Abrir recomendaciones de Massi"
+                  title="Abrir recomendaciones de Arki"
                 >
                   <span className="text-base">✨</span>
                   <div className="text-left text-xs leading-tight">
-                    <p className="font-extrabold text-stone-900">¡Massi tiene sugerencias!</p>
+                    <p className="font-extrabold text-stone-900">¡Arki tiene sugerencias!</p>
                     <p className="text-[10px] text-stone-500">{cartCount === 1 ? 'Para tu producto en canasta' : `Para tus ${cartCount} productos en canasta`}</p>
                   </div>
                 </div>
@@ -1425,10 +1425,10 @@
               <button
                 type="button"
                 onClick={() => setIsOpen(true)}
-                aria-label="Abrir asistente de ahorro Massi"
+                aria-label="Abrir asistente comercial Arki"
                 className="relative bg-white p-0.5 rounded-full shadow-2xl border-2 border-amber-400 hover:scale-110 active:scale-95 transition flex items-center justify-center group cursor-pointer"
               >
-                <img src="assets/massi-bot.jpg" alt="Massi Bot" className="w-12 h-12 rounded-full object-cover group-hover:rotate-6 transition-transform" />
+                <img src="assets/massi-bot.jpg" alt="Arki Bot" className="w-12 h-12 rounded-full object-cover group-hover:rotate-6 transition-transform" />
                 {cartCount > 0 && (
                   <span className="absolute -top-1 -right-1 bg-mass-red text-white text-[10px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white shadow animate-pulse">
                     ★
@@ -1438,20 +1438,20 @@
             </div>
           )}
 
-          {/* Ventana Emergente del Asistente Massi */}
+          {/* Ventana Emergente del Asistente Arki */}
           {isOpen && (
             <div
               className="fixed bottom-5 right-4 sm:right-6 z-50 w-[92vw] sm:w-96 max-w-sm bg-white rounded-3xl shadow-2xl border-2 border-amber-400 overflow-hidden flex flex-col max-h-[580px] animate-in zoom-in-95 duration-200"
               role="dialog"
-              aria-label="Ventana de chat de Massi"
+              aria-label="Ventana de chat de Arki"
             >
               {/* Cabecera del Chat */}
               <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-amber-500 p-3.5 text-stone-950 flex items-center justify-between shadow-sm">
                 <div className="flex items-center gap-2.5">
-                  <img src="assets/massi-bot.jpg" alt="Massi" className="w-9 h-9 rounded-full object-cover border-2 border-white shadow" />
+                  <img src="assets/massi-bot.jpg" alt="Arki" className="w-9 h-9 rounded-full object-cover border-2 border-white shadow" />
                   <div>
                     <h3 className="font-black text-xs sm:text-sm leading-tight flex items-center gap-1.5">
-                      <span>Massi – Asistente de Ahorro</span>
+                      <span>Arki – Asistente Comercial</span>
                       <span className="w-2 h-2 rounded-full bg-emerald-600 inline-block" title="En línea"></span>
                     </h3>
                     <p className="text-[10px] font-bold text-stone-800">
@@ -1488,7 +1488,7 @@
                 {loading && (
                   <div className="flex items-center gap-2 p-2.5 bg-white text-stone-600 rounded-2xl border border-amber-200 text-xs mr-6">
                     <span className="animate-spin text-amber-500 text-sm">✨</span>
-                    <span className="font-medium">Massi está revisando ofertas y stock...</span>
+                    <span className="font-medium">Arki está revisando ofertas y stock...</span>
                   </div>
                 )}
 
@@ -1580,7 +1580,7 @@
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Pregúntale a Massi..."
+                  placeholder="Pregúntale a Arki..."
                   disabled={loading}
                   className="flex-1 bg-stone-100 border border-stone-200 rounded-xl px-3 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
                 />
@@ -1992,7 +1992,7 @@ return (
                 <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3" role="status" aria-live="polite">
                   <div className="inline-block w-8 h-8 border-4 border-mass-yellow border-t-mass-red rounded-full animate-spin"></div>
                   <h3 className="text-sm font-bold text-stone-900">Buscando productos...</h3>
-                  <p className="text-xs text-stone-500">Consultando disponibilidad en tiempo real en Tiendas Mass.</p>
+                  <p className="text-xs text-stone-500">Consultando disponibilidad en tiempo real en Arkenya.</p>
                 </div>
               ) : filteredProducts.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
@@ -3153,7 +3153,7 @@ return (
             <div className="bg-white p-12 rounded-3xl border border-stone-200 text-center space-y-3">
               <span className="text-4xl">🛍️</span>
               <h3 className="text-sm font-bold text-stone-900">Aún no has realizado compras</h3>
-              <p className="text-xs text-stone-500">Explora el catálogo de Tiendas Mass y aprovecha los precios de ahorro diario.</p>
+              <p className="text-xs text-stone-500">Explora el catálogo de Arkenya y aprovecha los precios de ahorro diario.</p>
               <button onClick={onBackToStore} className="px-4 py-2 bg-mass-yellow text-stone-950 font-extrabold rounded-xl text-xs">
                 Ver Catálogo de Productos
               </button>

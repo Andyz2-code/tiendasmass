@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Motor de Accesibilidad Web (WCAG 2.1 / 2.2 Nivel AA & AAA)
+ * ARKENYA - Motor de Accesibilidad Web (WCAG 2.1 / 2.2 Nivel AA & AAA)
  * Archivo: /frontend/js/accessibility.js
  */
 (function (window, document) {

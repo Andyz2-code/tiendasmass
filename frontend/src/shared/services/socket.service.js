@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Cliente de Conexión WebSocket (Node.js Microservice :4000)
+ * ARKENYA - Cliente de Conexión WebSocket (Node.js Microservice :4000)
  * Ubicación: frontend/src/shared/services/socket.service.js
  */
 import { io } from 'socket.io-client';

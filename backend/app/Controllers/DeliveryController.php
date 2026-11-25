@@ -207,7 +207,7 @@ class DeliveryController {
 
     /**
      * POST /api/riders/register
-     * Crea una nueva cuenta de repartidor para la app móvil Mass Rider
+     * Crea una nueva cuenta de repartidor para la app móvil Arkenya Rider
      */
     public function riderRegister(): void {
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -235,7 +235,7 @@ class DeliveryController {
         $this->ensureRidersTable($db);
 
         $stmtSuc = $db->query("SELECT id, nombre FROM sucursales WHERE estado = 1 ORDER BY id ASC LIMIT 1");
-        $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tiendas Mass Principal'];
+        $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tienda Arkenya Principal'];
         $sucursalId = isset($input['sucursal_id']) && is_numeric($input['sucursal_id'])
             ? (int)$input['sucursal_id']
             : (int)$sucursal['id'];
@@ -287,7 +287,7 @@ class DeliveryController {
 
     /**
      * POST /api/riders/login
-     * Autentica al repartidor de la app móvil Mass Rider contra la tienda web
+     * Autentica al repartidor de la app móvil Arkenya Rider contra la tienda web
      */
     public function riderLogin(): void {
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -301,7 +301,7 @@ class DeliveryController {
         $db = Database::getConnection();
         $this->ensureRidersTable($db);
         $stmtSuc = $db->query("SELECT id, nombre FROM sucursales WHERE estado = 1 ORDER BY id ASC LIMIT 1");
-        $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tiendas Mass Principal'];
+        $sucursal = $stmtSuc->fetch(PDO::FETCH_ASSOC) ?: ['id' => 1, 'nombre' => 'Tienda Arkenya Principal'];
 
         $riderProfile = null;
 
@@ -394,7 +394,7 @@ class DeliveryController {
 
     /**
      * GET /api/riders/orders
-     * Lista pedidos DELIVERY reales desde MySQL para la app Mass Rider
+     * Lista pedidos DELIVERY reales desde MySQL para la app Arkenya Rider
      */
     public function riderOrders(): void {
         $db = Database::getConnection();
@@ -465,7 +465,7 @@ class DeliveryController {
                 ];
             }, $rawItems);
 
-            // Mapear estado de BD web -> estado app Mass Rider
+            // Mapear estado de BD web -> estado app Arkenya Rider
             $riderStatus = 'PENDIENTE';
             $estadoPedido = strtoupper((string)$row['estado_pedido']);
             $estadoDelivery = strtoupper((string)($row['estado_delivery'] ?? 'ASIGNADO'));
@@ -516,7 +516,7 @@ class DeliveryController {
 
     /**
      * POST /api/riders/orders/{id}/status
-     * Sincroniza el estado del pedido desde la app Mass Rider hacia MySQL (pedidos + deliveries)
+     * Sincroniza el estado del pedido desde la app Arkenya Rider hacia MySQL (pedidos + deliveries)
      */
     public function riderUpdateOrderStatus(string $id): void {
         $input = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -549,7 +549,7 @@ class DeliveryController {
         Response::success([
             'pedido_id' => $id,
             'status'    => $status,
-        ], 'Estado sincronizado con Tiendas Mass');
+        ], 'Estado sincronizado con Arkenya');
     }
 
     /**

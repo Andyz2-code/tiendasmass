@@ -11,7 +11,7 @@ use RuntimeException;
 /**
  * ProductExcelTemplateService
  * Genera de forma nativa (OpenXML / ZipArchive) la plantilla oficial de Excel (.xlsx)
- * con 3 hojas estructuradas, diseño corporativo de Tiendas Mass, autofiltros,
+ * con 3 hojas estructuradas, diseño corporativo de Arkenya, autofiltros,
  * congelamiento de encabezados, formatos numéricos y listas de referencia dinámicas.
  */
 class ProductExcelTemplateService {
@@ -232,7 +232,7 @@ class ProductExcelTemplateService {
 
         // Título del Banner
         $rows[] = "<row r=\"{$r}\" ht=\"32\" customHeight=\"1\">" .
-            self::cellStr("A", $r, "GUÍA OFICIAL DE IMPORTACIÓN MASIVA DE PRODUCTOS – TIENDAS MASS", 10) .
+            self::cellStr("A", $r, "GUÍA OFICIAL DE IMPORTACIÓN MASIVA DE PRODUCTOS – ARKENYA", 10) .
             self::cellStr("B", $r, "", 10) .
             self::cellStr("C", $r, "", 10) .
             self::cellStr("D", $r, "", 10) .
@@ -439,7 +439,7 @@ class ProductExcelTemplateService {
     <fill><patternFill patternType="solid"><fgColor rgb="FF1E293B"/></patternFill></fill> <!-- 2: Dark Header -->
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFFFFF"/></patternFill></fill> <!-- 3: White -->
     <fill><patternFill patternType="solid"><fgColor rgb="FFF8FAFC"/></patternFill></fill> <!-- 4: Light Gray Zebra -->
-    <fill><patternFill patternType="solid"><fgColor rgb="FFFDCB02"/></patternFill></fill> <!-- 5: Tiendas Mass Yellow -->
+    <fill><patternFill patternType="solid"><fgColor rgb="FFFDCB02"/></patternFill></fill> <!-- 5: Arkenya Yellow -->
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>

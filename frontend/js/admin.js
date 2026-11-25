@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TIENDAS MASS - Controlador de Backoffice y Administración
+   ARKENYA - Controlador de Backoffice y Administración
    Arquitectura: /frontend/js/admin.js
    ========================================================================== */
 

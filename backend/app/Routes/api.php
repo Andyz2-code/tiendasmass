@@ -1,6 +1,6 @@
 <?php
 /**
- * DEFINICIÓN DE RUTAS API REST - TIENDAS MASS
+ * DEFINICIÓN DE RUTAS API REST - ARKENYA
  * Arquitectura Controladores con Mapeos GetMapping / PostMapping
  * @var \App\Routes\Router $router
  */
@@ -63,7 +63,7 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->postMapping('/ventas', 'PedidoController@store');
     $api->putMapping('/pedidos/{id}/estado', 'PedidoController@updateStatus');
 
-    // 6. Mapeo de Delivery, Google Maps y App Mass Rider
+    // 6. Mapeo de Delivery, Google Maps y App Arkenya Rider
     $api->postMapping('/delivery/quote', 'DeliveryController@quote');
     $api->getMapping('/delivery/track/{pedido_id}', 'DeliveryController@track');
     $api->postMapping('/delivery/update-location', 'DeliveryController@updateLocation');
@@ -112,7 +112,7 @@ $router->group(['prefix' => 'api'], function ($api) {
     $api->getMapping('/configuraciones', 'ArkanErpController@getConfiguraciones', ['jwt', 'role:Administrador,Supervisor']);
     $api->putMapping('/configuraciones', 'ArkanErpController@updateConfiguraciones', ['jwt', 'role:Administrador']);
 
-    // 10. Mapeo de Chatbot Inteligente de Recomendaciones IA Massi (Google Gemini)
+    // 10. Mapeo de Chatbot Inteligente de Recomendaciones IA Arki (Google Gemini)
     $api->postMapping('/chat/recommendations', 'ChatbotController@getRecommendations');
     $api->postMapping('/chatbot/recommendations', 'ChatbotController@getRecommendations');
 });

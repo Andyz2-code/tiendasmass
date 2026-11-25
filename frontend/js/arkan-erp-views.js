@@ -1,5 +1,5 @@
 /**
- * Módulos ERP de ARKAN integrados en Tiendas Mass (Backoffice Admin & Supervisor)
+ * Módulos ERP de ARKAN integrados en Arkenya (Backoffice Admin & Supervisor)
  * Sin módulos de POS ni Ventas en caja. Control estricto por rol (isAdmin).
  */
 (function () {
@@ -564,7 +564,7 @@
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {(data.items || []).map(it => (
                 <div key={it.id} className="bg-white border-2 border-dashed border-stone-300 rounded-xl p-3 text-center space-y-1">
-                  <div className="text-[10px] font-black text-mass-red uppercase">TIENDAS MASS</div>
+                  <div className="text-[10px] font-black text-mass-red uppercase">ARKENYA</div>
                   <div className="text-xs font-extrabold text-stone-900 line-clamp-2 h-8">{it.nombre}</div>
                   <div className="text-xl font-black text-stone-950 bg-mass-yellow rounded-lg py-0.5">S/ {Number(it.precio_venta).toFixed(2)}</div>
                   <div className="font-mono text-[10px] text-stone-500">{it.codigo_barras || it.codigo_sku}</div>

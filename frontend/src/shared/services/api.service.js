@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Cliente HTTP Axios Unificado
+ * ARKENYA - Cliente HTTP Axios Unificado
  * Ubicación: frontend/src/shared/services/api.service.js
  */
 import axios from 'axios';

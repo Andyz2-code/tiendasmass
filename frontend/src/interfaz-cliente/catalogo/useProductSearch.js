@@ -4,7 +4,7 @@ import api from '../../services/api';
 
 /**
  * useProductSearch Hook
- * Motor de búsqueda optimizado para Tiendas Mass:
+ * Motor de búsqueda optimizado para Arkenya:
  * - Debounce de 500ms tras la última pulsación de tecla
  * - AbortController para cancelar solicitudes anteriores en vuelo y evitar condiciones de carrera
  * - Caché en memoria para evitar consultas idénticas repetidas

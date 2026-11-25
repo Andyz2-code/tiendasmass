@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Utilidades y Formateadores Globales
+ * ARKENYA - Utilidades y Formateadores Globales
  * Ubicación: frontend/src/shared/utils/formatters.js
  */
 

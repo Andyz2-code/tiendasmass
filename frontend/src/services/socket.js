@@ -14,7 +14,7 @@ export const getSocket = () => {
     });
 
     socket.on('connect', () => {
-      console.log(' Conectado al microservicio WebSocket de Tiendas Mass');
+      console.log(' Conectado al microservicio WebSocket de Arkenya');
     });
 
     socket.on('connect_error', (err) => {

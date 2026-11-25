@@ -103,9 +103,9 @@ class GeminiChatbotService {
         $candidateText = implode("\n", $candidateLines);
 
         // 3. Instrucción del sistema
-        $branchInfo = $branchName ? "en la sucursal {$branchName}" : "en Tiendas Mass";
+        $branchInfo = $branchName ? "en la sucursal {$branchName}" : "en Arkenya";
         $systemInstruction = <<<SYS
-Eres "Massi", el asistente inteligente y amigable de ahorro de Tiendas Mass (Perú).
+Eres "Arki", el asistente inteligente y amigable de ahorro de Arkenya (Perú).
 Tu misión es sugerir al cliente entre 1 y 3 productos complementarios o de gran ahorro {$branchInfo} que combinen con lo que lleva en su carrito.
 
 REGLAS DE ORO:

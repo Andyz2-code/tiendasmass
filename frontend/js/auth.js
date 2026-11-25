@@ -1,5 +1,5 @@
 /* ==========================================================================
-   TIENDAS MASS - Gestor de Autenticación y Perfil
+   ARKENYA - Gestor de Autenticación y Perfil
    Arquitectura: /frontend/js/auth.js
    ========================================================================== */
 

@@ -60,7 +60,7 @@ class ConteoWhatsAppNotificationService {
                 'estrato_abc'      => $conteo['estrato_abc'] ?? 'A',
                 'fecha_programada' => $conteo['fecha_programada'] ?? date('Y-m-d'),
                 'hora_programada'  => $conteo['hora_programada'] ?? '08:00:00',
-                'sucursal_nombre'  => $conteo['sucursal_nombre'] ?? 'Tiendas Mass',
+                'sucursal_nombre'  => $conteo['sucursal_nombre'] ?? 'Arkenya',
                 'instrucciones'    => $conteo['observaciones'] ?? 'Sin instrucciones adicionales'
             ],
             'plantilla_mensaje' => sprintf(
@@ -68,7 +68,7 @@ class ConteoWhatsAppNotificationService {
                 $trabajador['nombres'],
                 $rolEnConteo === 'ENCARGADO_PRINCIPAL' ? 'Encargado Responsable' : 'Personal de Apoyo',
                 $conteo['codigo_conteo'] ?? 'S/C',
-                $conteo['sucursal_nombre'] ?? 'Tiendas Mass',
+                $conteo['sucursal_nombre'] ?? 'Arkenya',
                 $conteo['fecha_programada'] ?? date('Y-m-d'),
                 $conteo['hora_programada'] ?? '08:00'
             ),

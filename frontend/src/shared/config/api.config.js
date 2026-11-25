@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Configuración Centralizada de API y Rutas
+ * ARKENYA - Configuración Centralizada de API y Rutas
  * Ubicación: frontend/src/shared/config/api.config.js
  */
 

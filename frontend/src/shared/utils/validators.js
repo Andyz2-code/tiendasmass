@@ -1,5 +1,5 @@
 /**
- * TIENDAS MASS - Validadores de Formularios
+ * ARKENYA - Validadores de Formularios
  * Ubicación: frontend/src/shared/utils/validators.js
  */
 

@@ -54,7 +54,7 @@ class AuthController {
 
         try {
             $result = $this->authService->loginClient($input['email'], $input['password']);
-            Response::success($result, 'Bienvenido a Tiendas Mass Virtual.');
+            Response::success($result, 'Bienvenido a Arkenya Virtual.');
         } catch (Exception $e) {
             Response::error($e->getMessage(), 401);
         }
@@ -82,7 +82,7 @@ class AuthController {
 
         try {
             $result = $this->authService->registerClient($input);
-            Response::success($result, 'Cuenta creada exitosamente. Bienvenido a Tiendas Mass.', 201);
+            Response::success($result, 'Cuenta creada exitosamente. Bienvenido a Arkenya.', 201);
         } catch (Exception $e) {
             Response::error($e->getMessage(), 400);
         }

@@ -51,7 +51,7 @@ class ChatbotController {
         $rawCart = $input['cart_items'] ?? $input['items'] ?? [];
         if (!is_array($rawCart) || empty($rawCart)) {
             Response::success([
-                'mensaje_ia' => '¡Hola! Soy Massi, tu asistente de ahorro. Agrega tus productos favoritos a la canasta y te sugeriré las mejores ofertas y combinaciones para tu compra.',
+                'mensaje_ia' => '¡Hola! Soy Arki, tu asistente de ahorro. Agrega tus productos favoritos a la canasta y te sugeriré las mejores ofertas y combinaciones para tu compra.',
                 'motivo' => 'Canasta vacía',
                 'productos' => [],
                 'source' => 'system'
