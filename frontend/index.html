@@ -3246,15 +3246,18 @@ return (
         }
       };
 
-      // 1. Conexión en tiempo real vía Socket.io + Polling de respaldo cada 5s
+      // 1. Conexión en tiempo real vía Socket.io + Polling de respaldo cada 3s
       useEffect(() => {
         fetchTrackingSnapshot();
-        const pollTimer = setInterval(fetchTrackingSnapshot, 5000);
+        const pollTimer = setInterval(fetchTrackingSnapshot, 3000);
 
         let socket = null;
         if (window.io && pedidoId) {
-          const nodeHost = window.location.hostname || 'localhost';
-          socket = window.io(`http://${nodeHost}:4000`, {
+          const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+          const socketUrl = isLocal
+            ? `http://${window.location.hostname}:4000`
+            : 'https://tiendas-mass-socket-production.up.railway.app';
+          socket = window.io(socketUrl, {
             transports: ['websocket', 'polling'],
             reconnectionAttempts: 10
           });
