@@ -11,7 +11,7 @@ DB_USER_VAL="${DB_USERNAME:-${MYSQLUSER:-root}}"
 DB_PASS_VAL="${DB_PASSWORD:-${MYSQLPASSWORD:-}}"
 DB_NAME_VAL="${DB_DATABASE:-${MYSQLDATABASE:-railway}}"
 
-MYSQL_FLAGS="-h ${DB_HOST_VAL} -P ${DB_PORT_VAL} -u ${DB_USER_VAL} -p${DB_PASS_VAL} --skip-ssl"
+MYSQL_FLAGS="-h ${DB_HOST_VAL} -P ${DB_PORT_VAL} -u ${DB_USER_VAL} -p${DB_PASS_VAL} --skip-ssl --default-character-set=utf8mb4"
 
 if [ -n "$DB_HOST_VAL" ]; then
   echo "[TiendasMass] Esperando conexión a MySQL en ${DB_HOST_VAL}:${DB_PORT_VAL}..."
@@ -23,15 +23,18 @@ if [ -n "$DB_HOST_VAL" ]; then
   done
 
   HAS_TABLE=$(mysql $MYSQL_FLAGS -N -s -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='${DB_NAME_VAL}' AND table_name='productos';" 2>/dev/null || echo "0")
-  if [ "$HAS_TABLE" = "0" ]; then
-    echo "[TiendasMass] Inicializando base de datos y migraciones en ${DB_NAME_VAL}..."
+  HAS_MOJIBAKE=$(mysql $MYSQL_FLAGS -N -s -e "SELECT COUNT(*) FROM productos WHERE nombre LIKE '%Ã%';" "$DB_NAME_VAL" 2>/dev/null || echo "0")
+
+  if [ "$HAS_TABLE" = "0" ] || [ "$HAS_MOJIBAKE" != "0" ]; then
+    echo "[TiendasMass] Inicializando/corrigiendo UTF-8 en ${DB_NAME_VAL}..."
+    mysql $MYSQL_FLAGS -e "SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS banners;" "$DB_NAME_VAL" || true
     mysql $MYSQL_FLAGS < /var/www/html/database/tiendas_mass.sql
     for mig in 03_create_banners_table.sql 06_update_real_product_images.sql 07_add_more_products_with_real_images.sql 08_arkan_modules.sql; do
       if [ -f "/var/www/html/database/migrations/$mig" ]; then
         mysql $MYSQL_FLAGS "$DB_NAME_VAL" < "/var/www/html/database/migrations/$mig" || true
       fi
     done
-    echo "[TiendasMass] Base de datos inicializada correctamente."
+    echo "[TiendasMass] Base de datos UTF-8 inicializada correctamente."
   fi
 fi
 
